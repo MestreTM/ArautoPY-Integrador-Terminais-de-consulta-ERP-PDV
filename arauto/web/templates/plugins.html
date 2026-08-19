@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block titulo %}Plugins{% endblock %}
+{% block cabecalho %}Plugins{% endblock %}
+{% block conteudo %}
+<section class="cartao">
+  <header class="config-secao-cab">
+    <h2>Plugins instalados</h2>
+    <p class="dica">
+      Extensões em <span class="mono">{{ pasta }}</span>.
+      Instalar, atualizar ou alterar código exige <strong>reiniciar o servidor</strong> para carregar.
+    </p>
+  </header>
+
+  <div class="plugins-acoes">
+    <a class="botao botao--claro" href="/plugins/docs">Ver documentação</a>
+  </div>
+
+  <div class="plugin-drop" id="plugin-drop" tabindex="0">
+    <p><strong>Instalar plugin</strong></p>
+    <p class="meta-img">Arraste um arquivo <span class="mono">.zip</span> aqui ou escolha no computador.</p>
+    <div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+      <input type="file" id="plugin-arquivo" accept=".zip,application/zip" hidden>
+      <button type="button" class="botao botao--claro" id="btn-plugin-escolher">Selecionar ZIP</button>
+      <label class="interruptor-linha" style="margin:0">
+        <input type="checkbox" id="plugin-atualizar">
+        <span>Atualizar se já existir</span>
+      </label>
+    </div>
+    <p class="meta-img" id="plugin-install-status" hidden></p>
+  </div>
+
+  <div id="plugins-lista" class="plugins-lista" style="margin-top:1rem">
+    <p class="meta-img">Carregando…</p>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/plugins.js"></script>
+{% endblock %}
+
+

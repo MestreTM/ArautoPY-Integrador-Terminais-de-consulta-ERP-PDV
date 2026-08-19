@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block cabecalho %}Painel do operador{% endblock %}
+
+{% block conteudo %}
+<div class="grade">
+<section class="cartao cartao--largo">
+    <h2>Consulta rápida</h2>
+    <p class="dica">Teste um código sem sair do painel. A consulta é registrada como canal <span class="mono">webviewer</span>.</p>
+    <div class="busca">
+      <input type="text" id="entrada-codigo" class="mono" placeholder="Código de barras"
+             inputmode="numeric" autocomplete="off">
+      <button class="botao" id="btn-consultar" type="button">Consultar</button>
+    </div>
+    <div id="resultado" class="resultado" hidden></div>
+  </section>
+
+  <section class="cartao">
+    <h2>Base de produtos</h2>
+    <dl class="lista-dados" id="dados-base"><dd class="vazio">carregando…</dd></dl>
+  </section>
+
+  <section class="cartao">
+    <h2>Desempenho <span class="etiqueta-periodo">7 dias</span></h2>
+    <div class="numeros" id="numeros">
+      <div><strong id="n-total">—</strong><span>consultas</span></div>
+      <div><strong id="n-acerto">—</strong><span>taxa de acerto</span></div>
+      <div><strong id="n-tempo">—</strong><span>tempo médio</span></div>
+    </div>
+  </section>
+
+  <section class="cartao">
+    <h2>Terminais conectados</h2>
+    <ul class="linhas" id="lista-terminais"><li class="vazio">Nenhum terminal conectado.</li></ul>
+  </section>
+
+  <section class="cartao">
+    <h2>Códigos não encontrados</h2>
+    <p class="dica">Cada linha aqui é provavelmente um cadastro faltando no seu ERP.</p>
+    <ul class="linhas" id="lista-faltantes"><li class="vazio">Nada por enquanto.</li></ul>
+  </section>
+
+  <section class="cartao cartao--largo">
+    <h2>Consultas recentes</h2>
+    <div class="tabela-rolagem">
+      <table class="tabela">
+        <thead>
+          <tr><th>Hora</th><th>Canal</th><th>Origem</th><th>Código</th><th>Produto</th><th>Preço</th><th class="dir">ms</th></tr>
+        </thead>
+        <tbody id="corpo-consultas">
+          <tr><td colspan="7" class="vazio">carregando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/painel.js"></script>{% endblock %}
+
+

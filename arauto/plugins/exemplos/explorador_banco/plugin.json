@@ -1,0 +1,9 @@
+{
+  "id": "explorador_banco",
+  "nome": "Explorador de banco",
+  "versao": "1.0.0",
+  "descricao": "Navega tabelas e registros do banco configurado (Firebird, SQL Server, SQLite, etc.). Permite filtrar, editar e excluir com confirmação dupla.",
+  "autor": "ArautoPY"
+}
+
+

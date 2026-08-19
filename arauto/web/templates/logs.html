@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block titulo %}Logs{% endblock %}
+{% block cabecalho %}Logs{% endblock %}
+
+{% block conteudo %}
+
+<section class="cartao">
+  <div class="filtros">
+    <div class="campo">
+      <label for="f-nivel">Nível mínimo</label>
+      <select id="f-nivel">
+        <option value="DEBUG">Tudo</option>
+        <option value="INFO" selected>Informação</option>
+        <option value="WARNING">Aviso</option>
+        <option value="ERROR">Erro</option>
+      </select>
+    </div>
+    <div class="campo">
+      <label for="f-origem">Origem</label>
+      <select id="f-origem"><option value="">Todas</option></select>
+    </div>
+    <div class="campo campo--cresce">
+      <label for="f-busca">Buscar no texto</label>
+      <input type="text" id="f-busca" placeholder="código, mensagem, endereço…">
+    </div>
+    <div class="campo campo--acoes">
+      <label class="interruptor-linha">
+        <input type="checkbox" id="f-auto" checked>
+        <span class="trilho"></span>
+        <span>Acompanhar</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="contadores" id="contadores"></div>
+</section>
+
+<section class="cartao cartao--console">
+  <div class="console-topo">
+    <h2>Registro da aplicação</h2>
+    <div class="console-acoes">
+      <a class="botao botao--fantasma" href="/api/logs/arquivo" download>Baixar arquivo</a>
+      <button type="button" class="botao botao--fantasma" id="btn-limpar">Limpar tela</button>
+    </div>
+  </div>
+  <div class="console" id="console" tabindex="0" aria-live="polite" aria-label="Registro da aplicação">
+    <p class="vazio">Aguardando linhas…</p>
+  </div>
+</section>
+
+<section class="cartao">
+  <div class="console-topo">
+    <h2>Consultas registradas</h2>
+    <div class="console-acoes">
+      <a class="botao botao--fantasma" href="/api/consultas/csv" download>Exportar CSV do dia</a>
+    </div>
+  </div>
+  <div class="tabela-rolagem">
+    <table class="tabela">
+      <thead>
+        <tr><th>Hora</th><th>Canal</th><th>Origem</th><th>Código</th><th>Produto</th><th>Preço</th><th class="dir">ms</th></tr>
+      </thead>
+      <tbody id="corpo-consultas">
+        <tr><td colspan="7" class="vazio">carregando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/logs.js"></script>{% endblock %}
+
+

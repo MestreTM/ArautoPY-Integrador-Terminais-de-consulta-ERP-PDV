@@ -1,0 +1,9 @@
+{
+  "id": "exemplo_hello",
+  "nome": "Olá (exemplo)",
+  "versao": "1.0.0",
+  "descricao": "Plugin de demonstração: adiciona uma aba e uma página simples.",
+  "autor": "ArautoPY"
+}
+
+

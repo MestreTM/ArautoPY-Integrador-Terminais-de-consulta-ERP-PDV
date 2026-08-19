@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block titulo %}Layout{% endblock %}
+{% block cabecalho %}Layout da tela do terminal{% endblock %}
+
+{% block conteudo %}
+
+<p class="intro">
+  O terminal não tem layout próprio: cada texto é posicionado pelo servidor.
+  Edite abaixo e veja como a consulta vai aparecer. O layout é <b>por modelo</b> —
+  todos os aparelhos do mesmo modelo usam o que estiver salvo aqui.
+</p>
+
+<section class="cartao">
+  <h2>Modelo do aparelho</h2>
+  <div class="modelos" id="modelos"><span class="vazio">carregando…</span></div>
+</section>
+
+<div class="editor">
+
+  <section class="cartao cartao--tela">
+    <div class="console-topo">
+      <h2>Simulação <span class="etiqueta-periodo" id="resolucao">—</span></h2>
+      <div class="console-acoes">
+        <button type="button" class="botao botao--fantasma botao--mini" id="btn-c-h"
+                title="Centralizar horizontalmente (X = -1)">↔ Centro</button>
+        <button type="button" class="botao botao--fantasma botao--mini" id="btn-c-v"
+                title="Centralizar verticalmente">↕ Centro</button>
+        <button type="button" class="botao botao--fantasma botao--mini" id="btn-c-ambos"
+                title="Centralizar nos dois eixos">✛ Centro total</button>
+        <label class="interruptor-linha">
+          <input type="checkbox" id="modo-vazio">
+          <span class="trilho"></span><span>Não encontrado</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="busca busca--previa">
+      <input type="text" id="codigo-previa" class="mono" value="7896080900001"
+             inputmode="numeric" placeholder="Código para simular">
+      <button type="button" class="botao" id="btn-previa">Simular</button>
+    </div>
+
+    <div class="tela-moldura">
+      <div class="tela" id="tela" tabindex="0"></div>
+    </div>
+    <p class="mascara-erro" id="aviso-corte" hidden></p>
+    <p class="ajuda tela-dica">
+      Arraste os elementos na tela (setas do teclado: 1 px, Shift: 10 px).
+      As guias alinham centro e bordas a outros elementos e ao centro da tela.
+      Os quatro cantos redimensionam a caixa ou a fonte.
+      Textos longos: use <b>Quebra</b> e <b>Linhas</b>.
+    </p>
+  </section>
+
+  <section class="cartao cartao--campos">
+    <h2>Elementos</h2>
+    <div class="elementos" id="elementos"></div>
+
+    <details class="avancado" open>
+      <summary>Fontes e cores</summary>
+      <div class="campos">
+        <div class="campo">
+          <label for="fonte-normal">Fonte normal</label>
+          <input type="text" id="fonte-normal" class="mono" value="DejaVuSans.ttf">
+          <p class="ajuda">Arquivo TrueType existente no aparelho.</p>
+        </div>
+        <div class="campo">
+          <label for="fonte-negrito">Fonte em negrito</label>
+          <input type="text" id="fonte-negrito" class="mono" value="DejaVuSans-Bold.ttf">
+        </div>
+        <div class="campo">
+          <label for="cor-texto">Cor do texto</label>
+          <select id="cor-texto"></select>
+        </div>
+        <div class="campo">
+          <label for="cor-fundo-texto">Fundo do texto</label>
+          <select id="cor-fundo-texto"></select>
+          <p class="ajuda">Sem fundo = transparente sobre a tela.</p>
+        </div>
+        <div class="campo">
+          <label for="cor-tela">Cor da tela</label>
+          <select id="cor-tela"></select>
+        </div>
+      </div>
+      <p class="ajuda">
+        Paleta oficial Gertec (0x0100–0x010F). Padrão: texto cinza, tela azul-marinho.
+      </p>
+    </details>
+  </section>
+
+</div>
+
+<div class="barra-acoes">
+  <button type="button" class="botao botao--claro" id="btn-salvar">Salvar layout deste modelo</button>
+  <button type="button" class="botao" id="btn-copiar">Copiar para outros modelos</button>
+  <button type="button" class="botao botao--fantasma" id="btn-restaurar">Restaurar padrão</button>
+</div>
+
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/layout.js"></script>{% endblock %}
+
+

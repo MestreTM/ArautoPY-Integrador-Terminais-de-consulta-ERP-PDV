@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block titulo %}Configuração{% endblock %}
+{% block cabecalho %}Configuração{% endblock %}
+
+{% block conteudo %}
+<form id="form-config" class="config-shell" autocomplete="off">
+
+  <aside class="config-nav" aria-label="Seções de configuração">
+    <p class="config-nav-titulo">Seções</p>
+    <nav class="config-nav-lista" id="config-nav">
+      {% for grupo in grupos %}{% if grupo.campos | rejectattr("oculto") | list %}
+      <button type="button" class="config-nav-item{% if loop.first %} config-nav-item--ativo{% endif %}"
+              data-secao="secao-{{ loop.index0 }}" title="{{ grupo.titulo }}">
+        <span class="config-nav-num">{{ "%02d"|format(loop.index) }}</span>
+        <span class="config-nav-label">{{ grupo.titulo }}</span>
+      </button>
+      {% endif %}{% endfor %}
+      {% if autostart and autostart.disponivel %}
+      <button type="button" class="config-nav-item" data-secao="secao-autostart" title="Inicialização">
+        <span class="config-nav-num">{{ "%02d"|format((grupos | length) + 1) }}</span>
+        <span class="config-nav-label">Inicialização</span>
+      </button>
+      {% endif %}
+      <button type="button" class="config-nav-item" data-secao="secao-balanca" title="Máscara da etiqueta de balança">
+        <span class="config-nav-num">{{ "%02d"|format((grupos | length) + 2) }}</span>
+        <span class="config-nav-label">Etiqueta de balança</span>
+      </button>
+      <button type="button" class="config-nav-item" data-secao="secao-atualizacao" title="Atualizações">
+        <span class="config-nav-num">{{ "%02d"|format((grupos | length) + 3) }}</span>
+        <span class="config-nav-label">Atualizações</span>
+      </button>
+    </nav>
+
+    <div class="config-nav-rodape">
+      <p class="config-nav-caminho mono" title="{{ caminho_config }}">{{ caminho_config }}</p>
+      <p class="config-nav-nota">
+        Campos com <span class="marca-reinicio">reinício</span> exigem reiniciar o servidor.
+      </p>
+    </div>
+  </aside>
+
+  <div class="config-corpo">
+    {% for grupo in grupos %}{% if grupo.campos | rejectattr("oculto") | list %}
+    <section class="cartao config-secao{% if loop.first %} config-secao--ativa{% endif %}"
+             id="secao-{{ loop.index0 }}" data-secao>
+      <header class="config-secao-cab">
+        <h2>{{ grupo.titulo }}</h2>
+        {% if grupo.nota %}<p class="dica">{{ grupo.nota }}</p>{% endif %}
+      </header>
+
+      <div class="campos">
+        {% for campo in grupo.campos if not campo.oculto %}
+        {% if campo.tipo == "divisor" %}
+        <header class="config-secao-cab config-secao-cab--sub config-divisor">
+          <h3>{{ campo.rotulo }}</h3>
+        </header>
+        {% else %}
+        <div class="campo campo--{{ campo.tipo }}" {% if campo.depende %}data-depende="{{ campo.depende }}"{% endif %}>
+          <label for="c_{{ campo.chave }}">
+            {{ campo.rotulo }}
+            {% if campo.reinicio %}<span class="marca-reinicio">reinício</span>{% endif %}
+          </label>
+
+          {% if campo.tipo == "select" %}
+            <select id="c_{{ campo.chave }}" name="{{ campo.chave }}">
+              {% for valor, texto in campo.opcoes %}
+              <option value="{{ valor }}" {% if campo.valor == valor %}selected{% endif %}>{{ texto }}</option>
+              {% endfor %}
+            </select>
+          {% elif campo.tipo == "bool" %}
+            <label class="interruptor">
+              <input type="checkbox" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
+                     {% if campo.valor == "true" %}checked{% endif %}>
+              <span class="trilho"></span>
+            </label>
+          {% elif campo.tipo == "senha" %}
+            <input type="password" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
+                   value="{{ campo.valor }}" placeholder="{{ campo.exemplo }}">
+          {% elif campo.tipo == "numero" %}
+            <input type="number" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
+                   value="{{ campo.valor }}" min="{{ campo.minimo }}" max="{{ campo.maximo }}">
+          {% elif campo.chave == "DB_URL" %}
+            <div class="campo-com-acao">
+              <input type="text" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
+                     value="{{ campo.valor }}" placeholder="{{ campo.exemplo }}"
+                     class="mono">
+              <button type="button" class="botao botao--claro" id="btn-testar-sql"
+                      title="Testa a conexão com os valores atuais do formulário">Testar</button>
+              <button type="button" class="botao" id="btn-mostrar-tabelas"
+                      title="Lista tabelas e ajuda a mapear colunas">Mostrar tabelas</button>
+            </div>
+            <p class="meta-img" id="testar-sql-resultado" hidden></p>
+          {% else %}
+            <input type="text" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
+                   value="{{ campo.valor }}" placeholder="{{ campo.exemplo }}"
+                   {% if campo.mono %}class="mono"{% endif %}>
+          {% endif %}
+
+          {% if campo.ajuda %}<p class="ajuda">{{ campo.ajuda }}</p>{% endif %}
+          <p class="chave-tecnica mono">{{ campo.chave }}</p>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+
+      {% if grupo.titulo == "Base de produtos" %}
+      <div class="subsecao-presets" id="subsecao-presets-base">
+        <header class="config-secao-cab config-secao-cab--sub">
+          <h3>Presets</h3>
+          <p class="dica">Aplica tabela e colunas conhecidos. Revise a URL antes de salvar.</p>
+        </header>
+        <div class="presets-base" style="display:flex;flex-wrap:wrap;gap:.5rem">
+          {% for p in presets_base %}
+          <button type="button" class="botao preset-base" data-preset-id="{{ p.id }}">{{ p.nome }}</button>
+          {% endfor %}
+        </div>
+        <p class="ajuda preset-base-nota" id="preset-base-nota" hidden></p>
+      </div>
+      {% endif %}
+
+      {% if loop.first %}
+      <div class="subsecao-imagens" id="subsecao-imagens">
+        <header class="config-secao-cab config-secao-cab--sub">
+          <h3>Imagens locais dos produtos</h3>
+          <p class="dica">
+            O pacote do GitHub é baixado automaticamente na subida do servidor.
+            Só sobrescreve EAN iguais; fotos baixadas do Bluesoft/Cosmos permanecem.
+          </p>
+        </header>
+
+        <div class="campos">
+          <div class="campo">
+            <label for="c_PRODUCT_IMAGE_PACK_URL">URL do pacote de imagens (ZIP / GitHub)</label>
+            <input type="text" id="c_PRODUCT_IMAGE_PACK_URL" name="PRODUCT_IMAGE_PACK_URL" class="mono"
+                   value="{{ product_image_pack_url }}">
+            <p class="ajuda">URL do ZIP do pacote de imagens.</p>
+            <p class="chave-tecnica mono">PRODUCT_IMAGE_PACK_URL</p>
+          </div>
+        </div>
+
+        <div class="bloco-imagens">
+          <p>
+            Status da base local:
+            <span class="badge-img" id="img-badge">verificando…</span>
+          </p>
+          <p class="meta-img" id="img-detalhe">—</p>
+          <p class="meta-img mono" id="img-pasta">—</p>
+
+          <div class="img-acoes" style="margin-top:.9rem;display:flex;flex-direction:column;gap:.65rem">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              <button type="button" class="botao botao--claro" id="btn-baixar-imagens">Baixar imagens do GitHub</button>
+              <button type="button" class="botao botao--fantasma" id="btn-status-imagens">Atualizar status</button>
+              <button type="button" class="botao botao--fantasma" id="btn-limpar-imagens">Limpar banco de imagens</button>
+            </div>
+            <div class="campo" style="max-width:28rem">
+              <label for="img-ean-apagar">Apagar imagem por EAN</label>
+              <div class="campo-com-acao">
+                <input type="text" id="img-ean-apagar" class="mono" placeholder="7896080900001" inputmode="numeric">
+                <button type="button" class="botao" id="btn-apagar-ean">Apagar</button>
+              </div>
+              <p class="ajuda">Informe o código EAN e apague a imagem local correspondente.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}{% endfor %}
+
+    {% if autostart and autostart.disponivel %}
+    <section class="cartao config-secao" id="secao-autostart" data-secao>
+      <header class="config-secao-cab">
+        <h2>Inicialização</h2>
+      </header>
+      <div class="campos">
+        <div class="campo campo--bool">
+          <label for="autostart-ativo">Iniciar com o sistema</label>
+          <label class="interruptor">
+            <input type="checkbox" id="autostart-ativo"
+                   {% if autostart.ativo %}checked{% endif %}>
+            <span class="trilho"></span>
+          </label>
+          <p class="meta-img" id="autostart-status"></p>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="cartao config-secao" id="secao-balanca" data-secao>
+      <header class="config-secao-cab">
+        <h2>Máscara da etiqueta de balança</h2>
+        <p class="dica">
+          Descreve posição a posição o código impresso pela balança.
+          Vigente: <span class="mono" id="mascara-atual">{{ mascara.mascara }}</span>
+          — {{ mascara.descricao_tipo }}.
+        </p>
+      </header>
+
+      <label class="interruptor-linha liga-balanca">
+        <input type="checkbox" name="SCALE_ENABLED" {% if balanca_ativa %}checked{% endif %}>
+        <span class="trilho"></span>
+        <span>Ler etiquetas de balança</span>
+      </label>
+
+      <div class="mascara-linha">
+        <div class="campo campo--cresce">
+          <label for="campo-mascara">Máscara</label>
+          <input type="text" id="campo-mascara" name="SCALE_MASK" class="mono mascara"
+                 value="{{ mascara.mascara }}" maxlength="20" spellcheck="false">
+          <p class="chave-tecnica mono">SCALE_MASK</p>
+        </div>
+        <div class="campo campo--curto">
+          <label for="campo-tamanho">Tamanho do código</label>
+          <input type="text" id="campo-tamanho" value="{{ mascara.tamanho_codigo }}" readonly>
+          <p class="ajuda">calculado</p>
+        </div>
+        <div class="campo campo--curto">
+          <label for="campo-comprimento">Comprimento</label>
+          <input type="text" id="campo-comprimento" value="{{ mascara.comprimento }}" readonly>
+          <p class="ajuda">calculado</p>
+        </div>
+      </div>
+
+      <div class="regua" id="regua" aria-hidden="true"></div>
+      <p class="mascara-erro" id="mascara-erro" hidden></p>
+
+      <div class="legenda">
+        {% for letra, texto in marcadores %}
+        <span><b class="m-{{ letra[0] }}">{{ letra }}</b> {{ texto }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="prontas">
+        <span>Modelos prontos:</span>
+        {% for valor, texto in prontas %}
+        <button type="button" class="pronta" data-mascara="{{ valor }}" title="{{ texto }}">{{ valor }}</button>
+        {% endfor %}
+      </div>
+
+      <div class="simulador">
+        <label for="sim-codigo">Simular um código impresso</label>
+        <div class="busca">
+          <input type="text" id="sim-codigo" class="mono" value="2001110007192"
+                 inputmode="numeric" maxlength="20">
+          <button type="button" class="botao" id="btn-simular">Simular</button>
+        </div>
+        <div id="sim-saida" class="sim-saida" hidden></div>
+      </div>
+    </section>
+
+    <section class="cartao config-secao" id="secao-atualizacao" data-secao>
+      <header class="config-secao-cab">
+        <h2>Atualizações</h2>
+        <p class="dica">Versões publicadas no repositório oficial do ArautoPY.</p>
+      </header>
+
+      <div class="update-painel">
+        <div class="update-painel-topo">
+          <div class="update-versao-card">
+            <span class="update-versao-label">Versão instalada</span>
+            <strong class="update-versao-valor mono" id="update-versao">—</strong>
+            <p class="meta-img" id="update-status"></p>
+          </div>
+          <div class="update-acoes">
+            <button type="button" class="botao botao--claro" id="btn-update-check">Verificar atualizações</button>
+            <button type="button" class="botao" id="btn-update-aplicar" disabled>Baixar e aplicar</button>
+            <a class="botao botao--fantasma" id="update-repo-link"
+               href="https://github.com/MestreTM/ArautoPY-Integrador-Terminais-de-consulta-ERP-PDV"
+               target="_blank" rel="noopener">Abrir no GitHub</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="update-changelog-bloco">
+        <div class="update-changelog-cab">
+          <h3>Changelog</h3>
+          <p class="meta-img">Histórico de mudanças do projeto</p>
+        </div>
+        <article class="docs-corpo markdown-body update-changelog-corpo" id="update-changelog">
+          <p class="meta-img">Carregando changelog…</p>
+        </article>
+      </div>
+    </section>
+
+    <div class="barra-acoes">
+      <button type="submit" class="botao botao--claro" id="btn-salvar">Salvar configuração</button>
+      <button type="button" class="botao" id="btn-recarregar">Recarregar base</button>
+      <button type="button" class="botao botao--fantasma" id="btn-descartar">Descartar</button>
+    </div>
+  </div>
+
+</form>
+
+<!-- Helper: tabelas / colunas do banco externo -->
+<div class="modal-sql" id="modal-sql" hidden>
+  <div class="modal-sql-fundo" id="modal-sql-fundo"></div>
+  <div class="modal-sql-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-sql-titulo">
+    <header class="modal-sql-cab">
+      <h3 id="modal-sql-titulo">Mapear tabela e colunas</h3>
+      <button type="button" class="toast-download-x" id="modal-sql-fechar" title="Fechar">×</button>
+    </header>
+
+    <p class="dica">1) Escolha a tabela de produtos · 2) Associe cada coluna · 3) Aplicar no formulário</p>
+
+    <div class="modal-sql-passo">
+      <label for="sql-busca-tabela">Buscar tabela</label>
+      <input type="search" id="sql-busca-tabela" placeholder="Ex.: PRODUTO, CAD_…" autocomplete="off">
+      <div class="sql-lista" id="sql-lista-tabelas">
+        <p class="meta-img">Clique em «Mostrar tabelas» para carregar.</p>
+      </div>
+      <p class="meta-img">Selecionada: <span class="mono" id="sql-tabela-sel">—</span></p>
+    </div>
+
+    <div class="modal-sql-passo" id="sql-passo-colunas" hidden>
+      <label for="sql-busca-coluna">Buscar coluna</label>
+      <input type="search" id="sql-busca-coluna" placeholder="Ex.: BARRA, DESCR, PRECO…" autocomplete="off">
+
+      <div class="sql-mapas">
+        <div class="sql-mapa">
+          <span>Código de barras</span>
+          <select id="sql-col-barcode"><option value="">—</option></select>
+        </div>
+        <div class="sql-mapa">
+          <span>Descrição</span>
+          <select id="sql-col-description"><option value="">—</option></select>
+        </div>
+        <div class="sql-mapa">
+          <span>Preço 1</span>
+          <select id="sql-col-price1"><option value="">—</option></select>
+        </div>
+        <div class="sql-mapa">
+          <span>Preço 2 (opcional)</span>
+          <select id="sql-col-price2"><option value="">—</option></select>
+        </div>
+      </div>
+      <p class="meta-img" id="sql-cols-status">—</p>
+    </div>
+
+    <footer class="modal-sql-rodape">
+      <button type="button" class="botao botao--fantasma" id="modal-sql-cancelar">Cancelar</button>
+      <button type="button" class="botao botao--claro" id="modal-sql-aplicar" disabled>Aplicar no formulário</button>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.ARAUTO_PRESETS_BASE = {{ presets_base | tojson }};
+</script>
+<script src="/static/js/config.js"></script>
+{% endblock %}
+
+

@@ -1,0 +1,3 @@
+"""ArautoPY — Servidor de integração."""
+
+

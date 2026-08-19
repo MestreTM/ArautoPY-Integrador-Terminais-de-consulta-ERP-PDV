@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Documentação de plugins{% endblock %}
+{% block cabecalho %}Documentação de plugins{% endblock %}
+{% block conteudo %}
+<section class="cartao docs-plugin">
+  <header class="config-secao-cab">
+    <h2>Documentação</h2>
+    <p class="dica">Guia do sistema de plugins · busca no texto abaixo</p>
+  </header>
+
+  <div class="docs-toolbar">
+    <input type="search" id="docs-busca" placeholder="Buscar na documentação (abas, render, TCP…)" autocomplete="off" spellcheck="false">
+    <a class="botao" href="/plugins">Voltar</a>
+    <a class="botao botao--claro" href="/api/plugins/exemplo.zip" download="plugins-exemplos.zip"
+       title="ZIP com os 3 plugins de exemplo (hello, mídia TC-506, explorador BD)">Baixar plugins exemplo (.zip)</a>
+  </div>
+  <p class="meta-img" id="docs-busca-status" hidden></p>
+
+  <article class="docs-corpo markdown-body" id="docs-corpo">
+    {{ html | safe }}
+  </article>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/plugins_docs.js"></script>
+{% endblock %}
+
+

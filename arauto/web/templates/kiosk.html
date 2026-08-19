@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Consulta de preço{% if loja %} — {{ loja }}{% endif %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/kiosk.css">
+</head>
+<body
+  data-reset="{{ reset_segundos }}"
+  data-rotulo1="{{ rotulo1 }}"
+  data-rotulo2="{{ rotulo2 }}"
+  data-nao-encontrado="{{ nao_encontrado }}">
+
+<!-- captura o leitor 2D/USB (modo teclado + Enter) -->
+<input id="captura" class="captura" autocomplete="off" autocapitalize="off"
+       autocorrect="off" spellcheck="false" inputmode="none" aria-hidden="true" tabindex="-1">
+
+<div class="rail" aria-hidden="true"></div>
+
+<header class="topo">
+  <span class="marca">{% if loja %}{{ loja }}{% else %}Terminal de consulta{% endif %}</span>
+  <div class="topo-dir">
+    <span class="sinal" id="sinal" title="Conexão com o servidor"><i></i>on-line</span>
+    <button class="btn-icone" id="btn-tela" type="button" title="Tela cheia" aria-label="Tela cheia">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<main class="palco" id="palco">
+
+  <section class="cena cena--ativa" id="cena-ocioso">
+    <div class="scanner" aria-hidden="true">
+      <div class="barras">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="feixe"></div>
+    </div>
+    <h1 class="chamada">Passe o código<br>de barras</h1>
+    <p class="apoio">Aponte o leitor para a etiqueta do produto</p>
+  </section>
+
+  <section class="cena" id="cena-buscando">
+    <div class="pulso" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p class="apoio">Consultando <span class="mono" id="buscando-codigo"></span></p>
+  </section>
+
+  <section class="cena cena--produto" id="cena-produto">
+    <p class="codigo mono" id="res-codigo"></p>
+    <h1 class="descricao" id="res-descricao"></h1>
+
+    <div class="etiqueta" id="etiqueta">
+      <span class="etiqueta-rotulo" id="res-rotulo1">Preço</span>
+      <p class="etiqueta-valor" id="res-preco1"></p>
+      <p class="etiqueta-nota" id="res-peso" hidden></p>
+    </div>
+
+    <div class="oferta" id="oferta" hidden>
+      <span class="oferta-rotulo" id="res-rotulo2">Preço personalizado</span>
+      <span class="oferta-valor" id="res-preco2"></span>
+    </div>
+  </section>
+
+  <section class="cena cena--vazio" id="cena-vazio">
+    <div class="selo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2M8.5 11h5"/>
+      </svg>
+    </div>
+    <h1 class="chamada chamada--alerta" id="vazio-titulo">Produto não encontrado</h1>
+    <p class="codigo mono" id="vazio-codigo"></p>
+    <p class="apoio">Confira o código ou procure um atendente.</p>
+  </section>
+
+</main>
+
+<div class="contagem" id="contagem" hidden><i id="contagem-barra"></i></div>
+
+<script src="/static/js/kiosk.js"></script>
+</body>
+</html>
+
+

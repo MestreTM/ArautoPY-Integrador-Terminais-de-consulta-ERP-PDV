@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block titulo %}Diagnóstico{% endblock %}
+{% block cabecalho %}Diagnóstico{% endblock %}
+
+{% block conteudo %}
+
+<div class="subabas" role="tablist" aria-label="Diagnóstico">
+  <button type="button" class="subaba subaba--ativa" data-sub="logs" role="tab" aria-selected="true">Logs</button>
+  <button type="button" class="subaba" data-sub="monitor" role="tab" aria-selected="false">Monitor</button>
+</div>
+
+<!-- ============== LOGS ============== -->
+<div class="subpainel" id="painel-logs" data-subpainel="logs">
+<section class="cartao">
+  <div class="filtros">
+    <div class="campo">
+      <label for="log-nivel">Nível mínimo</label>
+      <select id="log-nivel">
+        <option value="DEBUG">Tudo</option>
+        <option value="INFO" selected>Informação</option>
+        <option value="WARNING">Aviso</option>
+        <option value="ERROR">Erro</option>
+      </select>
+    </div>
+    <div class="campo">
+      <label for="log-origem">Origem</label>
+      <select id="log-origem"><option value="">Todas</option></select>
+    </div>
+    <div class="campo campo--cresce">
+      <label for="log-busca">Buscar no texto</label>
+      <input type="text" id="log-busca" placeholder="código, mensagem, endereço…">
+    </div>
+    <div class="campo campo--acoes">
+      <label class="interruptor-linha">
+        <input type="checkbox" id="log-auto" checked>
+        <span class="trilho"></span>
+        <span>Acompanhar</span>
+      </label>
+    </div>
+  </div>
+  <div class="contadores" id="log-contadores"></div>
+</section>
+
+<section class="cartao cartao--console">
+  <div class="console-topo">
+    <h2>Registro da aplicação</h2>
+    <div class="console-acoes">
+      <a class="botao botao--fantasma" href="/api/logs/arquivo" download>Baixar arquivo</a>
+      <button type="button" class="botao botao--fantasma" id="log-limpar">Limpar tela</button>
+    </div>
+  </div>
+  <div class="console" id="log-console" tabindex="0" aria-live="polite" aria-label="Registro da aplicação">
+    <p class="vazio">Aguardando linhas…</p>
+  </div>
+</section>
+
+<section class="cartao">
+  <div class="console-topo">
+    <h2>Consultas registradas</h2>
+    <div class="console-acoes">
+      <a class="botao botao--fantasma" href="/api/consultas/csv" download>Exportar CSV do dia</a>
+    </div>
+  </div>
+  <div class="tabela-rolagem">
+    <table class="tabela">
+      <thead>
+        <tr><th>Hora</th><th>Canal</th><th>Origem</th><th>Código</th><th>Produto</th><th>Preço</th><th class="dir">ms</th></tr>
+      </thead>
+      <tbody id="corpo-consultas">
+        <tr><td colspan="7" class="vazio">carregando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+
+<!-- ============== MONITOR ============== -->
+<div class="subpainel" id="painel-monitor" data-subpainel="monitor" hidden>
+<section class="cartao">
+  <p class="intro" style="margin-bottom:1rem">
+    Tudo que os terminais enviam e recebem, byte a byte. Se o terminal conecta
+    mas nada funciona, é aqui que aparece o porquê.
+  </p>
+  <div class="filtros">
+    <div class="campo">
+      <label for="mon-proto">Protocolo</label>
+      <select id="mon-proto">
+        <option value="">Todos</option>
+        <option value="SC501">SC501</option>
+        <option value="SC504">SC504</option>
+      </select>
+    </div>
+    <div class="campo">
+      <label for="mon-peer">Terminal</label>
+      <select id="mon-peer"><option value="">Todos</option></select>
+    </div>
+    <div class="campo campo--acoes">
+      <label class="interruptor-linha">
+        <input type="checkbox" id="mon-auto" checked>
+        <span class="trilho"></span><span>Acompanhar</span>
+      </label>
+    </div>
+    <div class="campo campo--acoes">
+      <label class="interruptor-linha">
+        <input type="checkbox" id="mon-ascii">
+        <span class="trilho"></span><span>Só ASCII</span>
+      </label>
+    </div>
+  </div>
+  <div class="contadores" id="mon-contadores"></div>
+</section>
+
+<section class="cartao cartao--console">
+  <div class="console-topo">
+    <h2>Tráfego cru</h2>
+    <div class="console-acoes">
+      <button type="button" class="botao botao--fantasma" id="mon-analisar">Analisar enquadramento</button>
+      <a class="botao botao--fantasma" id="mon-baixar" href="/api/monitor/captura" download>Baixar captura</a>
+      <button type="button" class="botao botao--fantasma" id="mon-limpar">Limpar</button>
+    </div>
+  </div>
+  <div id="mon-analise" class="sim-saida" hidden></div>
+  <div class="console console--monitor" id="mon-console" tabindex="0">
+    <p class="vazio">Aguardando tráfego. Conecte um terminal e faça uma consulta.</p>
+  </div>
+</section>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/logs.js"></script>
+<script src="/static/js/monitor.js"></script>
+<script src="/static/js/diagnostico.js"></script>
+{% endblock %}
+
+

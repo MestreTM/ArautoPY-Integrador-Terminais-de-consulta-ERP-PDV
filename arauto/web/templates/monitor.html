@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Monitor{% endblock %}
+{% block cabecalho %}Monitor de terminais{% endblock %}
+
+{% block conteudo %}
+
+<section class="cartao">
+  <p class="intro" style="margin-bottom:1rem">
+    Tudo que os terminais enviam e recebem, byte a byte, sem depender de
+    configuração. Se o terminal conecta mas nada funciona, é aqui que aparece o
+    porquê.
+  </p>
+
+  <div class="filtros">
+    <div class="campo">
+      <label for="f-proto">Protocolo</label>
+      <select id="f-proto">
+        <option value="">Todos</option>
+        <option value="SC501">SC501</option>
+        <option value="SC504">SC504</option>
+      </select>
+    </div>
+    <div class="campo">
+      <label for="f-peer">Terminal</label>
+      <select id="f-peer"><option value="">Todos</option></select>
+    </div>
+    <div class="campo campo--acoes">
+      <label class="interruptor-linha">
+        <input type="checkbox" id="f-auto" checked>
+        <span class="trilho"></span><span>Acompanhar</span>
+      </label>
+    </div>
+    <div class="campo campo--acoes">
+      <label class="interruptor-linha">
+        <input type="checkbox" id="f-ascii">
+        <span class="trilho"></span><span>Só ASCII</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="contadores" id="contadores"></div>
+</section>
+
+<section class="cartao cartao--console">
+  <div class="console-topo">
+    <h2>Tráfego cru</h2>
+    <div class="console-acoes">
+      <button type="button" class="botao botao--fantasma" id="btn-analisar">Analisar enquadramento</button>
+      <a class="botao botao--fantasma" id="btn-baixar" href="/api/monitor/captura" download>Baixar captura</a>
+      <button type="button" class="botao botao--fantasma" id="btn-limpar">Limpar</button>
+    </div>
+  </div>
+
+  <div id="analise" class="sim-saida" hidden></div>
+
+  <div class="console console--monitor" id="console" tabindex="0">
+    <p class="vazio">Aguardando tráfego. Conecte um terminal e faça uma consulta.</p>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/monitor.js"></script>{% endblock %}
+
+

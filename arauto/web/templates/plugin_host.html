@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block cabecalho %}{{ titulo }}{% endblock %}
+{% block conteudo %}
+{{ conteudo | safe }}
+{% endblock %}
+{% block scripts %}
+{{ scripts | safe }}
+{% endblock %}
+
+

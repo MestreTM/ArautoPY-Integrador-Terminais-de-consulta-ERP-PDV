@@ -1,0 +1,25 @@
+# Núcleo — necessário para WebViewer e API
+fastapi>=0.110
+uvicorn[standard]>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9
+
+# Imagem de produto no SC504 (IDvShowImg) — TC-506 Mídia
+Pillow>=10.0
+
+# Ícone na bandeja do Windows (versão .exe compilada)
+pystray>=0.19
+
+# Base EXTERNAL_SQL (PostgreSQL, MySQL, Firebird, etc.)
+sqlalchemy>=2.0
+
+# Firebird (DBware / SQLAlchemy 2.x) — URL firebird+firebird://...
+sqlalchemy-firebird>=2.1
+
+# Drivers opcionais — descomente conforme o banco:
+# psycopg2-binary        # PostgreSQL
+# pymysql                # MySQL / MariaDB
+# pyodbc                 # SQL Server
+# fdb                    # Firebird 2.5 legado (URL firebird+fdb://...)
+
+

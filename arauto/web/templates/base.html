@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B1220">
+<title>{% block titulo %}Administração{% endblock %} — ArautoPY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/admin.css">
+</head>
+<body>
+
+<header class="cabeca">
+  <div class="cabeca-titulo">
+    <p class="sobrenome">ArautoPY — Servidor de integração · {{ versao }}{% if loja %} · {{ loja }}{% endif %}</p>
+    <h1>{% block cabecalho %}Administração{% endblock %}</h1>
+  </div>
+  <nav class="abas">
+    <a href="/painel" class="aba {% if pagina == 'painel' %}aba--ativa{% endif %}">Painel</a>
+    <a href="/config" class="aba {% if pagina == 'config' %}aba--ativa{% endif %}">Configuração</a>
+    <a href="/layout" class="aba {% if pagina == 'layout' %}aba--ativa{% endif %}">Layout</a>
+    <a href="/diagnostico" class="aba {% if pagina in ('diagnostico', 'logs', 'monitor') %}aba--ativa{% endif %}">Diagnóstico</a>
+    <a href="/plugins" class="aba {% if pagina == 'plugins' %}aba--ativa{% endif %}">Plugins</a>
+    {% for aba in abas_plugins|default([]) %}
+    <a href="{{ aba.href }}" class="aba {% if pagina == aba.id %}aba--ativa{% endif %}">{{ aba.rotulo }}</a>
+    {% endfor %}
+    <a href="/" class="aba aba--saida">Abrir terminal</a>
+  </nav>
+</header>
+
+<main class="conteudo">
+{% block conteudo %}{% endblock %}
+</main>
+
+<div class="aviso" id="aviso" hidden><span id="aviso-texto"></span></div>
+
+<div class="toast-download" id="toast-download" hidden aria-live="polite">
+  <div class="toast-download-cab">
+    <strong id="toast-download-titulo">Base de imagens</strong>
+    <button type="button" class="toast-download-x" id="toast-download-fechar" title="Ocultar">×</button>
+  </div>
+  <p class="toast-download-msg" id="toast-download-msg">Preparando…</p>
+  <div class="toast-download-barra"><i id="toast-download-fill"></i></div>
+  <p class="toast-download-pct" id="toast-download-pct">0%</p>
+</div>
+
+<script src="/static/js/comum.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
+
+
