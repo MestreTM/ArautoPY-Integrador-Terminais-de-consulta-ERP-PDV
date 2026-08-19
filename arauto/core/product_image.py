@@ -1,12 +1,4 @@
 """Imagens de produto: cache local (EAN) + fallback HTTP + pacote GitHub.
-
-Ordem de resolução na consulta:
-  1. Arquivo local ``{ean13}.jpg`` em ``~/.arautopy/imagens/``
-  2. Fallback ``PRODUCT_IMAGE_URL`` (Bluesoft etc.), gravado localmente
-     em metade da qualidade
-
-O ZIP do GitHub **só sobrescreve** arquivos com o mesmo nome; demais JPG
-(baixados sob demanda do Cosmos, por exemplo) são preservados.
 """
 
 from __future__ import annotations
@@ -35,7 +27,7 @@ GITHUB_REPO_IMAGENS = "MestreTM/ArautoPY-Integrador-Terminais-de-consulta-ERP-PD
 PACOTE_ASSET_NOME = "prod_ean_imagens.zip"
 # Fallback se a API do GitHub falhar (release histórico conhecido)
 PACOTE_URL_PADRAO = (
-    f"https://github.com/{GITHUB_REPO_IMAGENS}/releases/download/v1.0/{PACOTE_ASSET_NOME}"
+    f"https://github.com/{GITHUB_REPO_IMAGENS}/releases/download/v1.0.0/{PACOTE_ASSET_NOME}"
 )
 
 IMAGENS_DIR = APP_DIR / "imagens"
@@ -349,24 +341,29 @@ def url_pacote_efetiva(url: str | None = None) -> str:
     """URL a usar no download.
 
     Prioridade:
-      1. ``url`` explícita (chamada de API)
-      2. ``PRODUCT_IMAGE_PACK_URL`` se o usuário configurou uma URL própria
-      3. Último ``prod_ean_imagens.zip`` encontrado nos releases do repo oficial
-      4. Fallback fixo em v1.0
+      1. ``url`` explícita (chamada externa) / ``PRODUCT_IMAGE_PACK_URL`` manual
+      2. Último ``prod_ean_imagens.zip`` via API de releases
+      3. URL pública ``/releases/latest/download/prod_ean_imagens.zip``
+      4. Fallback fixo na tag ``v1.0.0``
     """
     settings = get_settings()
     cfg = (url if url is not None else settings.get("PRODUCT_IMAGE_PACK_URL") or "").strip()
-    # URL manual só se não for a legada/v1.0 do próprio projeto (essas seguem o "último release")
     auto_markers = (
         "Prod-EAN-Imagens",
         f"{GITHUB_REPO_IMAGENS}/releases/download/",
+        f"{GITHUB_REPO_IMAGENS}/releases/latest/download/",
     )
     if cfg and not any(m in cfg for m in auto_markers):
         return cfg
     recente = _url_pacote_github_recente()
     if recente:
         return recente
-    return cfg or PACOTE_URL_PADRAO
+    # Sem API (rate limit etc.): GitHub resolve a tag "latest" sozinho
+    latest = (
+        f"https://github.com/{GITHUB_REPO_IMAGENS}/releases/latest/download/"
+        f"{PACOTE_ASSET_NOME}"
+    )
+    return latest
 
 
 
@@ -421,7 +418,21 @@ def baixar_pacote_imagens(url: str | None = None) -> dict:
         garantir_pasta_imagens()
         log.info("Baixando pacote de imagens: %s", url)
         req = urllib.request.Request(url, headers={"User-Agent": "ArautoPY/1.0"})
-        with urllib.request.urlopen(req, timeout=180) as resp:
+        try:
+            resp_ctx = urllib.request.urlopen(req, timeout=180)
+        except urllib.error.HTTPError as http_exc:
+            if http_exc.code == 404 and "/latest/download/" not in url:
+                alt = (
+                    f"https://github.com/{GITHUB_REPO_IMAGENS}/releases/latest/download/"
+                    f"{PACOTE_ASSET_NOME}"
+                )
+                log.warning("404 em %s — tentando %s", url, alt)
+                url = alt
+                req = urllib.request.Request(url, headers={"User-Agent": "ArautoPY/1.0"})
+                resp_ctx = urllib.request.urlopen(req, timeout=180)
+            else:
+                raise
+        with resp_ctx as resp:
             total = int(resp.headers.get("Content-Length") or 0)
             with _DOWNLOAD_LOCK:
                 _download_status["bytes_total"] = total
@@ -563,5 +574,3 @@ def apagar_imagem_ean(codigo: str) -> dict:
                 _CACHE.pop(k, None)
     log.info("Imagem local removida: %s", caminho.name)
     return {"ok": True, "ean": ean, "arquivo": caminho.name, **status_pacote()}
-
-
