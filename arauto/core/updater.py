@@ -140,6 +140,99 @@ def changelog() -> dict:
         }
 
 
+
+def _latest_via_redirect() -> dict | None:
+    """Descobre a tag do último release sem a API (evita rate limit).
+
+    Segue o redirect de ``/releases/latest`` → ``/releases/tag/vX.Y.Z``
+    e monta a URL pública do asset ``ArautoPY.zip``.
+    """
+    latest = f"{REPO_URL}/releases/latest"
+    req = urllib.request.Request(
+        latest,
+        headers={"User-Agent": _USER_AGENT},
+        method="GET",
+    )
+    try:
+        # Não seguir redirect automaticamente para ler o Location / URL final
+        opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+        # Usar urlopen normal — ele segue redirects; a URL final tem a tag
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            final = resp.geturl() or ""
+    except urllib.error.HTTPError as exc:
+        if exc.code in (301, 302, 303, 307, 308):
+            final = exc.headers.get("Location") or ""
+        else:
+            log.debug("latest redirect HTTP %s", exc.code)
+            return None
+    except Exception as exc:
+        log.debug("latest redirect: %s", exc)
+        return None
+
+    # .../releases/tag/v1.0.0
+    m = re.search(r"/releases/tag/([^/?#]+)", final)
+    if not m:
+        log.debug("URL final sem tag: %s", final)
+        return None
+    from urllib.parse import unquote
+    tag = unquote(m.group(1))
+    asset_url = f"{REPO_URL}/releases/latest/download/{GITHUB_ASSET}"
+    return {
+        "tag": tag,
+        "nome": tag,
+        "html_url": f"{REPO_URL}/releases/tag/{tag}",
+        "asset_url": asset_url,
+        "asset_nome": GITHUB_ASSET,
+        "body": "",
+        "publicado": "",
+        "via": "redirect",
+    }
+
+
+def _latest_via_api() -> dict | None:
+    """Consulta a API oficial de releases (pode bater rate limit)."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    dados = _http_json(url)
+    if not isinstance(dados, dict):
+        return None
+    tag = str(dados.get("tag_name") or "").strip()
+    if not tag:
+        return None
+    preferido = GITHUB_ASSET.lower()
+    asset_url = ""
+    asset_nome = ""
+    for a in dados.get("assets") or []:
+        if not isinstance(a, dict):
+            continue
+        an = str(a.get("name") or "")
+        if an.lower() == preferido:
+            asset_url = str(a.get("browser_download_url") or "")
+            asset_nome = an
+            break
+    if not asset_url:
+        for a in dados.get("assets") or []:
+            if not isinstance(a, dict):
+                continue
+            an = str(a.get("name") or "")
+            if an.lower().endswith(".zip"):
+                asset_url = str(a.get("browser_download_url") or "")
+                asset_nome = an
+                break
+    if not asset_url:
+        asset_url = f"{REPO_URL}/releases/latest/download/{GITHUB_ASSET}"
+        asset_nome = GITHUB_ASSET
+    return {
+        "tag": tag,
+        "nome": str(dados.get("name") or tag),
+        "html_url": str(dados.get("html_url") or ""),
+        "asset_url": asset_url,
+        "asset_nome": asset_nome,
+        "body": str(dados.get("body") or "")[:4000],
+        "publicado": str(dados.get("published_at") or ""),
+        "via": "api",
+    }
+
+
 def verificar() -> dict:
     """Consulta o GitHub Releases e compara com a versão local."""
     global _ultimo_check
@@ -157,16 +250,46 @@ def verificar() -> dict:
             "repo_url": REPO_URL,
         }
 
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    info = None
+    api_erro = None
     try:
-        dados = _http_json(url)
+        info = _latest_via_api()
     except urllib.error.HTTPError as exc:
+        api_erro = exc
         if exc.code == 404:
+            # tenta fallback antes de desistir
+            pass
+        elif exc.code == 403:
+            log.info("API GitHub rate limit/403 — usando fallback por redirect")
+        else:
+            log.debug("API GitHub HTTP %s — fallback", exc.code)
+    except Exception as exc:
+        api_erro = exc
+        log.debug("API GitHub falhou: %s — fallback", exc)
+
+    if not info:
+        info = _latest_via_redirect()
+
+    if not info:
+        if isinstance(api_erro, urllib.error.HTTPError) and api_erro.code == 404:
             return {
                 "ok": False,
                 "detail": (
                     "Nenhum release publicado ainda neste repositório. "
-                    f"Veja {REPO_URL}/releases"
+                    f"Crie um release em {REPO_URL}/releases com o asset "
+                    f"{GITHUB_ASSET}."
+                ),
+                "versao_local": versao_local(),
+                "repo": GITHUB_REPO,
+                "repo_url": REPO_URL,
+            }
+        if isinstance(api_erro, urllib.error.HTTPError) and api_erro.code == 403:
+            return {
+                "ok": False,
+                "detail": (
+                    "GitHub temporariamente limitou consultas (rate limit). "
+                    "Aguarde alguns minutos e tente de novo, ou abra "
+                    f"{REPO_URL}/releases"
                 ),
                 "versao_local": versao_local(),
                 "repo": GITHUB_REPO,
@@ -174,67 +297,32 @@ def verificar() -> dict:
             }
         return {
             "ok": False,
-            "detail": f"GitHub HTTP {exc.code}: {exc.reason}",
+            "detail": (
+                f"Não foi possível consultar o GitHub ({api_erro or 'sem resposta'}). "
+                f"Veja {REPO_URL}/releases"
+            ),
             "versao_local": versao_local(),
             "repo": GITHUB_REPO,
-        }
-    except Exception as exc:
-        log.exception("verificar update")
-        return {
-            "ok": False,
-            "detail": str(exc),
-            "versao_local": versao_local(),
-            "repo": GITHUB_REPO,
+            "repo_url": REPO_URL,
         }
 
-    if not isinstance(dados, dict):
-        return {"ok": False, "detail": "Resposta inesperada da API do GitHub."}
-
-    tag = str(dados.get("tag_name") or "").strip()
-    nome = str(dados.get("name") or tag)
-    body = str(dados.get("body") or "")[:4000]
-    html_url = str(dados.get("html_url") or "")
-    publicado = str(dados.get("published_at") or "")
-    assets = dados.get("assets") or []
-    preferido = GITHUB_ASSET.lower()
-    asset_url = ""
-    asset_nome = ""
-    for a in assets:
-        if not isinstance(a, dict):
-            continue
-        an = str(a.get("name") or "")
-        if an.lower() == preferido:
-            asset_url = str(a.get("browser_download_url") or "")
-            asset_nome = an
-            break
-    if not asset_url:
-        for a in assets:
-            if not isinstance(a, dict):
-                continue
-            an = str(a.get("name") or "")
-            if an.lower().endswith(".zip"):
-                asset_url = str(a.get("browser_download_url") or "")
-                asset_nome = an
-                break
-    if not asset_url:
-        asset_url = str(dados.get("zipball_url") or "")
-        asset_nome = "source.zip"
-
+    tag = info["tag"]
     local = versao_local()
     disponivel = bool(tag) and _mais_nova(tag, local)
     resultado = {
         "ok": True,
         "versao_local": local,
         "versao_remota": tag,
-        "nome_release": nome,
-        "notas": body,
-        "url_release": html_url,
-        "publicado": publicado,
-        "asset": asset_nome,
-        "asset_url": asset_url,
+        "nome_release": info.get("nome") or tag,
+        "notas": info.get("body") or "",
+        "url_release": info.get("html_url") or f"{REPO_URL}/releases",
+        "publicado": info.get("publicado") or "",
+        "asset": info.get("asset_nome") or GITHUB_ASSET,
+        "asset_url": info.get("asset_url") or "",
         "atualizacao_disponivel": disponivel,
         "repo": GITHUB_REPO,
         "repo_url": REPO_URL,
+        "via": info.get("via") or "",
         "detail": (
             f"Nova versão {tag} disponível."
             if disponivel
@@ -389,5 +477,3 @@ def verificar_em_background() -> None:
             log.debug("Update check falhou", exc_info=True)
 
     threading.Thread(target=_job, name="arauto-update-check", daemon=True).start()
-
-
