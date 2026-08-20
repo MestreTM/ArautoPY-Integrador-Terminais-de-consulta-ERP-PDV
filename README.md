@@ -7,12 +7,35 @@ Recriação em Python do Gertec TC Server, com painel web, API REST, plugins e s
 
 > **⚠️ Aviso Importante:** Caso tenha um terminal Tanca, Elgin, Bematech, Honeywell, Zebra, etc., entre em contato. podemos integra-lo ao sistema! 
 
-## Modelos compativeis:
-| Marca | Modelo | Status |
-|---|---|---|
-| Gertec | TC 506 M(Mídia) | ✅ TESTADO E FUNCIONANDO |
-| Gertec | Busca Preço G2 | ✅ TESTADO E FUNCIONANDO |
-| Gertec | Linha G-BOT/G-BOT2 | ⚠️ COMPATÍVEL - SEM TESTES |
+## Modelos compatíveis
+
+| Marca | Modelo | Protocolo | Status |
+|---|---|---|---|
+| Gertec | **TC-506 Mídia** | SC504 (16510) | ✅ TESTADO E FUNCIONANDO |
+| Gertec | **Busca Preço G2** | SC501 (6500) | ✅ TESTADO E FUNCIONANDO |
+| Gertec | TC-406 | SC501 (6500) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | TC-502 | SC501 (6500) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | TC-505 | SC501 (6500) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | TC-507 | SC501 (6500) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | TC-504 | SC504 (16510) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | TC-508 | SC504 (16510) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | GB-600 / GB-601 | SC504 (16510) | ⚠️ COMPATÍVEL — SEM TESTES |
+| Gertec | Linha G-BOT / G-BOT2 | SC504 (16510) | ⚠️ COMPATÍVEL — SEM TESTES |
+
+> **TC-406:** consulta de preço somente texto (sem envio de imagem na consulta).
+
+### Resumo por porta
+
+| Porta | Protocolo | Modelos |
+|------:|-----------|---------|
+| **6500** | SC501 | TC-406, TC-502, TC-505, TC-507, Busca Preço G2 |
+| **16510** | SC504 | TC-504, TC-506 Mídia, TC-508, GB-600/601, G-BOT/G-BOT2 |
+
+### Observações
+
+- **Testado de ponta a ponta:** TC-506 Mídia (consulta, imagem, mídia/propaganda) e Busca Preço G2 (handshake `#live`, consulta textual).
+- Demais modelos usam o mesmo protocolo da família; devem funcionar, mas **não houve captura/validação** neste projeto.
+- Resolução de layout de referência: TC-506 Mídia **480×272**; TC-504 **320×240** (layout escalado por modelo).
 
 ---
 
@@ -36,6 +59,10 @@ No Windows também existem atalhos:
 | Script | Uso |
 |---|---|
 | `run_venv.bat` | Cria/usa `.venv\` interno e sobe o servidor |
+
+### instruções de configuração rápida 
+
+[![instruções e tutorial ArautoPY](https://img.youtube.com/vi/T3Bj4OTtG4E/maxresdefault.jpg)](https://www.youtube.com/watch?v=T3Bj4OTtG4E)
 
 Após iniciar:
 
