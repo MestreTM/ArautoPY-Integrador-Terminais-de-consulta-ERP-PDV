@@ -75,6 +75,7 @@ class QueryResult:
     unit_price2: str = ""
     db_barcode: str = ""
     elapsed_ms: float = 0.0
+    extra: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         data = {
@@ -100,16 +101,26 @@ class QueryResult:
             }
             # nome antigo mantido para não quebrar integrações já em produção
             data["consulta_por_peso"] = data["etiqueta_balanca"]
+        if self.extra:
+            if "codigo_adicional" in self.extra:
+                data["codigo_adicional"] = self.extra.get("codigo_adicional")
+            if "origem_codigo" in self.extra:
+                data["origem_codigo"] = self.extra.get("origem_codigo")
+            if "codigo_principal" in self.extra:
+                data["codigo_principal"] = self.extra.get("codigo_principal")
+            data["extra"] = dict(self.extra)
         return data
 
 
 @dataclass
 class TerminalInfo:
-    """Um terminal físico conectado ao servidor SC501."""
+    """Um terminal físico conectado ao servidor SC501/SC504."""
 
     address: str
     model: str = "desconhecido"
     tipo: int | None = None      # termType do SC504, usado pelo editor de layout
+    mac: str = ""                # MAC da interface (IDvGetUID / ARG_UID)
+    nome_aparelho: str = ""      # ex.: "TC506-Media" (vindo do UID)
     connected_at: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
     queries: int = 0
@@ -120,6 +131,8 @@ class TerminalInfo:
             "endereco": self.address,
             "modelo": self.model,
             "tipo": self.tipo,
+            "mac": self.mac or "",
+            "nome_aparelho": self.nome_aparelho or "",
             "conectado_em": self.connected_at,
             "visto_em": self.last_seen,
             "consultas": self.queries,
@@ -182,6 +195,10 @@ class QueryService:
             result.description = product.description or "Produto sem descrição"
             result.price1 = display_price(product.price1, symbol)
             result.price2 = display_price(product.price2, symbol)
+            if getattr(product, "extra", None):
+                result.extra = dict(product.extra)
+            if not result.db_barcode:
+                result.db_barcode = product.barcode
 
         result.elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
 
@@ -234,6 +251,22 @@ class QueryService:
                 "simbolo": self.settings.currency_symbol,
                 "loja": self.settings.store_name,
             },
+            "colunas": self.mapeamento_colunas(),
+        }
+
+    def mapeamento_colunas(self) -> dict:
+        """Mapeamento SQL vigente — plugins usam isso sem ler config.properties.
+
+        ``barcode_alt`` fica vazio quando a coluna adicional não está configurada.
+        """
+        alt = (self.settings.get("DB_COL_BARCODE_ALT") or "").strip()
+        return {
+            "barcode": self.settings.get("DB_COL_BARCODE"),
+            "barcode_alt": alt,
+            "description": self.settings.get("DB_COL_DESCRIPITION"),
+            "price1": self.settings.get("DB_COL_PRICE1"),
+            "price2": self.settings.get("DB_COL_PRICE2"),
+            "tabela": self.settings.get("DB_PRODUCT_TABLE_NAME"),
         }
 
     def buscar_candidatos(self, candidatos: list[str]) -> Product | None:

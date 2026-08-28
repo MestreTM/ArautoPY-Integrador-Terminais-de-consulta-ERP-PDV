@@ -71,6 +71,8 @@ class _MemoryIndexed(ProductRepository):
         self._interval = max(30, reload_interval_s)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # reporta códigos duplicados só na 1ª carga (inicialização)
+        self._duplicados_ja_reportados = False
 
     def start_autoreload(self) -> None:
         if self._thread is not None:
@@ -91,35 +93,99 @@ class _MemoryIndexed(ProductRepository):
 
     def _publish(self, products: list[Product]) -> None:
         mapping: dict[str, Product] = {}
+        reportar_dups = not self._duplicados_ja_reportados
+        duplicados: list[str] = []
+        vistos_dup: set[str] = set()
+
+        def _index(chave: str, prod: Product) -> None:
+            if not chave:
+                return
+            mapping[chave] = prod
+
+        unicos: list[Product] = []
         for p in products:
             if not p.barcode:
                 continue
-            if p.barcode in mapping:
-                log.warning("Código duplicado (%s); a última linha prevalece", p.barcode)
-            mapping[p.barcode] = p
+            bc = str(p.barcode).strip()
+            p.barcode = bc
+            if bc in mapping and mapping[bc] is not p:
+                if reportar_dups and bc not in vistos_dup:
+                    vistos_dup.add(bc)
+                    duplicados.append(bc)
+            _index(bc, p)
+            alt = ""
+            if isinstance(p.extra, dict):
+                alt = str(p.extra.get("codigo_adicional") or "").strip()
+            if alt and alt != bc:
+                _index(alt, p)
+            for chave in (bc, alt):
+                if chave.isdigit():
+                    sem = chave.lstrip("0") or "0"
+                    _index(sem, p)
+                    _index(chave.zfill(6), p)
+                    _index(sem.zfill(6), p)
+            unicos.append(p)
+
+        if reportar_dups:
+            self._duplicados_ja_reportados = True
+            if duplicados:
+                n = len(duplicados)
+                # uma única linha: amostra + total (evita spam no log)
+                amostra = ", ".join(duplicados[:12])
+                if n > 12:
+                    amostra += f", … (+{n - 12} outros)"
+                log.warning(
+                    "Base com %d código(s) duplicado(s); prevalece a última linha: %s",
+                    n, amostra,
+                )
+
         with self._lock:
             self._map = mapping
-            self._list = list(mapping.values())
+            self._list = unicos
             self._last_load = time.time()
 
     def get(self, barcode: str) -> Product | None:
+        key = (barcode or "").strip()
+        if not key:
+            return None
         with self._lock:
-            return self._map.get((barcode or "").strip())
+            achado = self._map.get(key)
+            if achado is not None:
+                return achado
+            if key.isdigit():
+                sem = key.lstrip("0") or "0"
+                for cand in (sem, key.zfill(6), sem.zfill(6), key.zfill(4), sem.zfill(4)):
+                    achado = self._map.get(cand)
+                    if achado is not None:
+                        return achado
+            return None
 
     def search(self, query: str = "", limit: int = 50, offset: int = 0) -> list[Product]:
         q = (query or "").strip().lower()
         with self._lock:
             source = self._list
             if q:
-                source = [
-                    p for p in source
-                    if q in p.barcode.lower() or q in p.description.lower()
-                ]
+                q_sem = q.lstrip("0") if q.isdigit() else q
+                filtrados = []
+                for p in source:
+                    bc = (p.barcode or "").lower()
+                    desc = (p.description or "").lower()
+                    alt = ""
+                    if isinstance(p.extra, dict):
+                        alt = str(p.extra.get("codigo_adicional") or "").lower()
+                    if (
+                        q in bc
+                        or q in desc
+                        or (alt and q in alt)
+                        or (q_sem and (q_sem in bc or q_sem in desc or (alt and q_sem in alt)))
+                    ):
+                        filtrados.append(p)
+                source = filtrados
             return source[offset : offset + limit]
 
     def count(self) -> int:
         with self._lock:
-            return len(self._map)
+            return len(self._list)
 
     def status(self) -> dict:
         data = super().status()
@@ -354,9 +420,12 @@ class SqlRepository(_MemoryIndexed):
             if "firebird" in str(exc).lower() or nome == "NoSuchModuleError":
                 raise RuntimeError(
                     f"Não foi possível carregar o dialeto do banco ({exc}). "
-                    "Para Firebird no SQLAlchemy 2.x: "
-                    "pip install sqlalchemy-firebird "
-                    "e use URL firebird+firebird://USER:SENHA@HOST/caminho.fdb"
+                    "Drivers no requirements: sqlalchemy-firebird, psycopg2-binary, "
+                    "pymysql, pymssql. Firebird 3+: firebird+firebird://USER:SENHA@HOST/arquivo.fdb "
+                    "— PostgreSQL: postgresql+psycopg2://USER:SENHA@HOST:5432/banco "
+                    "— MySQL: mysql+pymysql://USER:SENHA@HOST:3306/banco "
+                    "— SQL Server: mssql+pymssql://USER:SENHA@HOST:1433/banco "
+                    "— SQLite: sqlite:///caminho.db"
                 ) from exc
             raise
         self._error: str | None = None
@@ -377,14 +446,29 @@ class SqlRepository(_MemoryIndexed):
     def reload(self, force: bool = False) -> int:
         from sqlalchemy import text as sql_text
 
-        select_cols = ", ".join(
-            f"{self.cols[k]}" for k in ("barcode", "description", "price1", "price2")
-            if self.cols.get(k)
-        )
-        query = f"SELECT {select_cols} FROM {self.table}"
+        chaves = ["barcode", "description", "price1", "price2"]
+        if (self.cols.get("barcode_alt") or "").strip():
+            chaves.append("barcode_alt")
+
+        def _select(ks: list[str]) -> str:
+            return ", ".join(f"{self.cols[k]}" for k in ks if self.cols.get(k))
+
+        query = f"SELECT {_select(chaves)} FROM {self.table}"
         try:
             with self._engine.connect() as conn:
-                rows = conn.execute(sql_text(query)).mappings().all()
+                try:
+                    rows = conn.execute(sql_text(query)).mappings().all()
+                except Exception as exc:
+                    if "barcode_alt" in chaves:
+                        log.warning(
+                            "Coluna adicional %s indisponível (%s); carregando sem ela",
+                            self.cols.get("barcode_alt"), exc,
+                        )
+                        chaves = ["barcode", "description", "price1", "price2"]
+                        query = f"SELECT {_select(chaves)} FROM {self.table}"
+                        rows = conn.execute(sql_text(query)).mappings().all()
+                    else:
+                        raise
             products = [Product.from_row(dict(r), self.cols) for r in rows]
             self._publish(products)
             self._error = None
@@ -399,6 +483,7 @@ class SqlRepository(_MemoryIndexed):
         data = super().status()
         data["tabela"] = self.table
         data["erro"] = self._error
+        data["colunas"] = dict(self.cols)
         return data
 
 
@@ -533,6 +618,139 @@ def listar_colunas_sql(url: str, table: str) -> dict:
         _fechar_engine(engine)
 
 
+def _ident_sql(nome: str) -> str:
+    """Identificador SQL simples (tabela/coluna), sem injeção."""
+    n = "".join(ch for ch in (nome or "") if ch.isalnum() or ch in ("_", "$"))
+    return n
+
+
+def amostra_produto_sql(
+    url: str,
+    table: str,
+    cols: dict[str, str] | None = None,
+    offset: int = 0,
+    excluir: str = "",
+) -> dict:
+    """Produto de teste: o último completo (offset 0), depois os anteriores."""
+    table_id = _ident_sql(table)
+    cols = cols or {}
+    mapa = {
+        "barcode": _ident_sql(cols.get("barcode") or cols.get("DB_COL_BARCODE") or ""),
+        "barcode_alt": _ident_sql(cols.get("barcode_alt") or cols.get("DB_COL_BARCODE_ALT") or ""),
+        "description": _ident_sql(cols.get("description") or cols.get("DB_COL_DESCRIPITION") or ""),
+        "price1": _ident_sql(cols.get("price1") or cols.get("DB_COL_PRICE1") or ""),
+        "price2": _ident_sql(cols.get("price2") or cols.get("DB_COL_PRICE2") or ""),
+    }
+    if not table_id or not mapa["barcode"] or not mapa["description"] or not mapa["price1"]:
+        return {
+            "ok": False,
+            "detail": "Informe tabela, código, descrição e preço para pré-visualizar.",
+        }
+    try:
+        from sqlalchemy import text as sql_text
+    except ImportError:
+        return {"ok": False, "detail": "SQLAlchemy não instalado."}
+
+    engine = None
+    try:
+        engine, url_norm = _preparar_engine_sql(url)
+        dialect = url_norm.lower()
+        select_cols = [c for c in (
+            mapa["barcode"], mapa["description"], mapa["price1"],
+            mapa["barcode_alt"], mapa["price2"],
+        ) if c]
+        # mantém ordem estável e sem duplicata
+        vistos: list[str] = []
+        for c in select_cols:
+            if c not in vistos:
+                vistos.append(c)
+
+        def nao_vazio(col: str) -> str:
+            if "firebird" in dialect:
+                return f"({col} IS NOT NULL AND TRIM(CAST({col} AS VARCHAR(80))) <> '')"
+            if "mssql" in dialect:
+                return f"({col} IS NOT NULL AND LTRIM(RTRIM(CONVERT(VARCHAR(4000), {col}))) <> '')"
+            return f"({col} IS NOT NULL AND CAST({col} AS VARCHAR(80)) <> '')"
+
+        where = " AND ".join(nao_vazio(c) for c in (
+            mapa["barcode"], mapa["description"], mapa["price1"],
+        ))
+        excluir = (excluir or "").strip()
+        if excluir:
+            safe = excluir.replace("'", "")
+            where += f" AND CAST({mapa['barcode']} AS VARCHAR(80)) <> '{safe}'"
+        lista = ", ".join(vistos)
+        order = mapa["barcode"]
+        try:
+            skip = max(0, int(offset or 0))
+        except (TypeError, ValueError):
+            skip = 0
+        if "firebird" in dialect:
+            sql = (
+                f"SELECT FIRST 1 SKIP {skip} {lista} FROM {table_id} "
+                f"WHERE {where} ORDER BY {order} DESC"
+            )
+        else:
+            sql = (
+                f"SELECT {lista} FROM {table_id} WHERE {where} "
+                f"ORDER BY {order} DESC LIMIT 1 OFFSET {skip}"
+            )
+
+        conn = engine.connect()
+        try:
+            row = conn.execute(sql_text(sql)).fetchone()
+            if row is None and skip > 0:
+                skip = 0
+                if "firebird" in dialect:
+                    sql0 = (
+                        f"SELECT FIRST 1 {lista} FROM {table_id} "
+                        f"WHERE {where} ORDER BY {order} DESC"
+                    )
+                else:
+                    sql0 = (
+                        f"SELECT {lista} FROM {table_id} WHERE {where} "
+                        f"ORDER BY {order} DESC LIMIT 1"
+                    )
+                row = conn.execute(sql_text(sql0)).fetchone()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        if not row:
+            return {
+                "ok": False,
+                "detail": "Nenhum produto com código, descrição e preço preenchidos.",
+                "tabela": table_id,
+            }
+        valores = {}
+        for i, nome in enumerate(vistos):
+            valores[nome] = "" if row[i] is None else str(row[i]).strip()
+        produto = {
+            "codigo": valores.get(mapa["barcode"], ""),
+            "codigo_adicional": valores.get(mapa["barcode_alt"], "") if mapa["barcode_alt"] else "",
+            "descricao": valores.get(mapa["description"], ""),
+            "preco1": valores.get(mapa["price1"], ""),
+            "preco2": valores.get(mapa["price2"], "") if mapa["price2"] else "",
+        }
+        return {
+            "ok": True,
+            "tabela": table_id,
+            "produto": produto,
+            "bruto": valores,
+            "offset": skip,
+            "proximo_offset": skip + 1,
+            "detail": "Produto de teste encontrado.",
+        }
+    except RuntimeError as exc:
+        return {"ok": False, "detail": str(exc)}
+    except Exception as exc:
+        return {"ok": False, "detail": f"Não foi possível ler um produto de teste: {exc}"}
+    finally:
+        _fechar_engine(engine)
+
+
+
 def testar_conexao_sql(
     url: str,
     table: str = "",
@@ -558,34 +776,45 @@ def testar_conexao_sql(
             else:
                 conn.execute(sql_text("SELECT 1"))
             produtos = None
-            if table:
+            table_id = _ident_sql(table)
+            if table_id:
                 try:
-                    total = conn.execute(sql_text(f"SELECT COUNT(*) FROM {table}")).scalar()
+                    total = conn.execute(sql_text(f'SELECT COUNT(*) FROM "{table_id}"')).scalar()
                     produtos = int(total or 0)
-                except Exception as exc2:
-                    return {
-                        "ok": False,
-                        "detail": (
-                            f"Conectou, mas a tabela/consulta falhou: {exc2}. "
-                            "Use «Mostrar tabelas» para escolher o nome certo."
-                        ),
-                        "conectou": True,
-                    }
+                except Exception:
+                    try:
+                        total = conn.execute(sql_text(f"SELECT COUNT(*) FROM {table_id}")).scalar()
+                        produtos = int(total or 0)
+                    except Exception as exc2:
+                        return {
+                            "ok": False,
+                            "detail": (
+                                f"Conectou, mas a tabela {table_id} falhou: {exc2}. "
+                                "Use «Mostrar tabelas» para escolher o nome certo."
+                            ),
+                            "conectou": True,
+                        }
                 if cols:
-                    select_cols = ", ".join(
-                        cols[k] for k in ("barcode", "description", "price1", "price2")
-                        if cols.get(k)
-                    )
-                    if select_cols:
+                    select_keys = ["barcode", "description", "price1", "price2"]
+                    if cols.get("barcode_alt"):
+                        select_keys.append("barcode_alt")
+                    nomes = [_ident_sql(cols[k]) for k in select_keys if cols.get(k)]
+                    nomes = [n for n in nomes if n]
+                    if nomes:
                         try:
-                            conn.execute(sql_text(f"SELECT {select_cols} FROM {table}")).fetchone()
-                        except Exception as exc3:
-                            return {
-                                "ok": False,
-                                "detail": f"Conectou, mas as colunas falharam: {exc3}",
-                                "conectou": True,
-                                "produtos": produtos,
-                            }
+                            lista = ", ".join(f'"{n}"' for n in nomes)
+                            conn.execute(sql_text(f"SELECT {lista} FROM \"{table_id}\"")).fetchone()
+                        except Exception:
+                            try:
+                                lista = ", ".join(nomes)
+                                conn.execute(sql_text(f"SELECT {lista} FROM {table_id}")).fetchone()
+                            except Exception as exc3:
+                                return {
+                                    "ok": False,
+                                    "detail": f"Conectou, mas as colunas falharam: {exc3}",
+                                    "conectou": True,
+                                    "produtos": produtos,
+                                }
         finally:
             try:
                 conn.close()
@@ -620,15 +849,20 @@ def build_repository(settings: Settings) -> ProductRepository:
         if not url:
             log.error("DB_MODE=EXTERNAL_SQL mas DB_URL está vazio; usando base interna")
             return InternalRepository()
+        cols = {
+            "barcode": settings.get("DB_COL_BARCODE"),
+            "description": settings.get("DB_COL_DESCRIPITION"),
+            "price1": settings.get("DB_COL_PRICE1"),
+            "price2": settings.get("DB_COL_PRICE2"),
+        }
+        extra = (settings.get("DB_COL_BARCODE_ALT") or "").strip()
+        principal = (cols.get("barcode") or "").strip()
+        if extra and extra.upper() != principal.upper():
+            cols["barcode_alt"] = extra
         return SqlRepository(
             url=url,
             table=settings.get("DB_PRODUCT_TABLE_NAME"),
-            cols={
-                "barcode": settings.get("DB_COL_BARCODE"),
-                "description": settings.get("DB_COL_DESCRIPITION"),
-                "price1": settings.get("DB_COL_PRICE1"),
-                "price2": settings.get("DB_COL_PRICE2"),
-            },
+            cols=cols,
             reload_interval_min=settings.get_int("DB_RELOAD_INTERVAL_MIN", 60),
         )
     return InternalRepository()

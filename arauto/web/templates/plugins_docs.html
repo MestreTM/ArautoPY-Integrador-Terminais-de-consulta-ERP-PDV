@@ -2,6 +2,10 @@
 {% block titulo %}Documentação de plugins{% endblock %}
 {% block cabecalho %}Documentação de plugins{% endblock %}
 {% block conteudo %}
+<div class="plugins-wp">
+  {% set aba_plugins = "docs" %}
+  {% include "_plugins_nav.html" %}
+
 <section class="cartao docs-plugin">
   <header class="config-secao-cab">
     <h2>Documentação</h2>
@@ -10,7 +14,6 @@
 
   <div class="docs-toolbar">
     <input type="search" id="docs-busca" placeholder="Buscar na documentação (abas, render, TCP…)" autocomplete="off" spellcheck="false">
-    <a class="botao" href="/plugins">Voltar</a>
     <a class="botao botao--claro" href="/api/plugins/exemplo.zip" download="plugins-exemplos.zip"
        title="ZIP com os 3 plugins de exemplo (hello, mídia TC-506, explorador BD)">Baixar plugins exemplo (.zip)</a>
   </div>
@@ -20,6 +23,7 @@
     {{ html | safe }}
   </article>
 </section>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/plugins_docs.js"></script>

@@ -58,6 +58,11 @@
   <div class="console-topo">
     <h2>Consultas registradas</h2>
     <div class="console-acoes">
+      <div class="filtro-fonte" role="group" aria-label="Filtrar origem">
+        <button type="button" class="botao botao--mini filtro-fonte-btn filtro-fonte-btn--ativo" data-fonte="">Todas</button>
+        <button type="button" class="botao botao--mini filtro-fonte-btn" data-fonte="sistema">Sistema</button>
+        <button type="button" class="botao botao--mini filtro-fonte-btn" data-fonte="terminais">Terminais</button>
+      </div>
       <a class="botao botao--fantasma" href="/api/consultas/csv" download>Exportar CSV do dia</a>
     </div>
   </div>

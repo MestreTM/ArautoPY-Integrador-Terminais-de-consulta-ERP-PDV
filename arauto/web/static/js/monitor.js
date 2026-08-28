@@ -49,7 +49,7 @@
         `<div class="ev-topo">` +
         `<span class="ev-seta">${seta}</span>` +
         `<span class="ev-hora">${esc(e.hora)}</span>` +
-        `<span class="pastilha">${esc(e.protocolo)}</span>` +
+        `<span class="pastilha pastilha-canal pastilha-canal--${esc(String(e.protocolo||"").toLowerCase())}">${esc(e.protocolo)}</span>` +
         `<span class="ev-peer">${esc(e.peer)}</span>` +
         (e.bytes ? `<span class="ev-tam">${e.bytes} bytes</span>` : "") +
         (e.nota ? `<span class="ev-nota">${esc(e.nota)}</span>` : "") +
@@ -66,11 +66,11 @@
 
   function contadores(r) {
     $("mon-contadores").innerHTML =
-      `<span>${r.eventos} de ${r.capacidade} eventos</span>` +
-      `<span>${r.recebidos} recebidos</span>` +
-      `<span>${r.enviados} enviados</span>` +
-      `<span>${r.bytes_recebidos} bytes do terminal</span>` +
-      `<span>${r.sessoes} sessão(ões)</span>`;
+      `<span class="pastilha pastilha--info">${esc(r.eventos)} / ${esc(r.capacidade)} eventos</span>` +
+      `<span class="pastilha pastilha--ok">${esc(r.recebidos)} recebidos</span>` +
+      `<span class="pastilha pastilha-canal pastilha-canal--sc504">${esc(r.enviados)} enviados</span>` +
+      `<span class="pastilha pastilha--debug">${esc(r.bytes_recebidos)} bytes</span>` +
+      `<span class="pastilha pastilha-canal pastilha-canal--webviewer">${esc(r.sessoes)} sessão(ões)</span>`;
   }
 
   async function atualizar() {

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="escuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar — ArautoPY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/admin.css">
+<script>
+(function () {
+  try { document.documentElement.dataset.tema = localStorage.getItem("arauto.tema") || "escuro"; } catch (e) {}
+})();
+</script>
+</head>
+<body class="inst-body">
+  <main class="inst-shell">
+    <header class="inst-marca">
+      <span class="marca-selo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V9l8-5 8 5v8"/><path d="M9 21v-6h6v6"/></svg>
+      </span>
+      <div>
+        <strong>ArautoPY</strong>
+        <p class="meta-img">{% if loja %}{{ loja }}{% else %}Painel de administração{% endif %}</p>
+      </div>
+    </header>
+    <section class="inst-cartao">
+      <h1>Entrar no painel</h1>
+      <p class="dica">Use o usuário definido na instalação.</p>
+      <form id="form-login" class="inst-form">
+        <div class="campo">
+          <label for="login-usuario">Usuário</label>
+          <input type="text" id="login-usuario" name="usuario" autocomplete="username" required autofocus>
+        </div>
+        <div class="campo">
+          <label for="login-senha">Senha</label>
+          <input type="password" id="login-senha" name="senha" autocomplete="current-password" required>
+        </div>
+        <p class="meta-img" id="login-erro" hidden></p>
+        <button type="submit" class="botao botao--claro inst-cta" id="btn-login">Entrar</button>
+      </form>
+    </section>
+    <p class="inst-pe mono">v{{ versao }}</p>
+  </main>
+  <div class="aviso" id="aviso" hidden><span id="aviso-texto"></span></div>
+  <script src="/static/js/comum.js"></script>
+  <script src="/static/js/login.js"></script>
+</body>
+</html>

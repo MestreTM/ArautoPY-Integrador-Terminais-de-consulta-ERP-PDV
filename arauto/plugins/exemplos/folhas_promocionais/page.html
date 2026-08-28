@@ -1,0 +1,416 @@
+<div class="folha-shell">
+  <aside class="folha-lateral">
+    <header class="folha-lat-cab">
+      <h3>Gerador de Cartaz</h3>
+      <p class="meta-img">Camadas · produto · salvar</p>
+    </header>
+
+    <div class="folha-bloco">
+      <label>Projeto</label>
+      <input type="text" id="folha-tpl-nome" placeholder="Nome do cartaz / template" class="folha-input">
+      <button type="button" class="botao botao--fantasma" id="folha-trocar-tpl" style="margin-top:.35rem">Trocar template…</button>
+    </div>
+
+    <div class="folha-bloco">
+      <label>Papel</label>
+      <select id="folha-papel" class="folha-select"></select>
+      <div class="folha-custom-size" id="folha-custom-size" hidden>
+        <input type="number" id="folha-w" min="20" max="2000" step="1" placeholder="Largura mm">
+        <span>×</span>
+        <input type="number" id="folha-h" min="20" max="2000" step="1" placeholder="Altura mm">
+      </div>
+      <label class="folha-check">
+        <input type="color" id="folha-fundo" value="#ffffff"> Fundo
+      </label>
+    </div>
+
+    <div class="folha-bloco">
+      <label for="folha-codigo">Produto</label>
+      <div class="campo-com-acao">
+        <input type="text" id="folha-codigo" class="folha-input" placeholder="Código (EAN, balança…) ou descrição" autocomplete="off">
+        <button type="button" class="botao botao--claro" id="folha-buscar">Buscar</button>
+      </div>
+      <p class="meta-img" id="folha-prod-status">Código de balança, EAN ou cadastro; texto abre busca por descrição.</p>
+      <div id="folha-preco-modo-wrap" class="folha-preco-modo" hidden>
+        <span class="meta-img">Exibir preço</span>
+        <label class="folha-check-inline"><input type="radio" name="folha-preco-modo" value="kg" checked> O kilo</label>
+        <label class="folha-check-inline"><input type="radio" name="folha-preco-modo" value="100g"> 100 g</label>
+      </div>
+    </div>
+
+    <div class="folha-bloco">
+      <div class="folha-camadas-cab">
+        <label>Camadas</label>
+        <div class="folha-camadas-btns">
+          <button type="button" class="botao botao--fantasma" id="folha-add-text" title="Texto">+ Texto</button>
+          <button type="button" class="botao botao--fantasma" id="folha-add-field" title="Campo">+ Campo</button>
+          <button type="button" class="botao botao--fantasma" id="folha-add-img-cosmos" title="Foto Cosmos">+ Foto Cosmos</button>
+          <button type="button" class="botao botao--fantasma" id="folha-add-img-custom" title="Imagem própria">+ Imagem</button>
+          <button type="button" class="botao botao--fantasma" id="folha-add-rect" title="Retângulo">+ Retângulo</button>
+        </div>
+      </div>
+      <ul class="folha-lista-camadas" id="folha-lista-camadas"></ul>
+    </div>
+
+    <div class="folha-bloco" id="folha-props" hidden>
+      <label>Propriedades</label>
+      <div id="folha-props-corpo" class="folha-props-corpo"></div>
+    </div>
+
+    <div class="folha-acoes">
+      <button type="button" class="botao botao--claro" id="folha-salvar-como">Salvar como…</button>
+      <button type="button" class="botao" id="folha-imprimir">Imprimir</button>
+      <input type="file" id="folha-import-file" accept=".json,.zip,application/json,application/zip" hidden>
+    </div>
+  </aside>
+
+  <main class="folha-canvas-wrap">
+    <div class="folha-canvas-toolbar">
+      <span class="meta-img" id="folha-info-papel">A4 · 210×297 mm</span>
+      <span class="meta-img mono" id="folha-zoom-label">100%</span>
+    </div>
+    <div class="folha-canvas-scroll" id="folha-canvas-scroll">
+      <div class="folha-folha" id="folha-folha">
+        <!-- camadas renderizadas via JS -->
+      </div>
+    </div>
+  </main>
+</div>
+
+
+<div class="folha-modal" id="folha-modal-prod" hidden>
+  <div class="folha-modal-box" style="width:min(32rem,100%)">
+    <h3 id="folha-modal-prod-titulo">Produtos</h3>
+    <p class="meta-img" id="folha-modal-prod-sub"></p>
+    <ul class="folha-prod-lista" id="folha-prod-lista"></ul>
+    <button type="button" class="botao botao--fantasma" id="folha-modal-prod-cancel">Fechar</button>
+  </div>
+</div>
+
+<div class="folha-modal" id="folha-modal-inicio" hidden>
+  <div class="folha-modal-box" style="width:min(28rem,100%)">
+    <h3>Gerador de Cartaz</h3>
+    <p class="meta-img">Como deseja começar?</p>
+    <div class="folha-modal-acoes" style="flex-direction:column">
+      <button type="button" class="botao botao--claro" id="folha-inicio-abrir">Abrir template salvo</button>
+      <button type="button" class="botao" id="folha-inicio-novo">Criar novo</button>
+      <button type="button" class="botao" id="folha-inicio-importar">Importar arquivo…</button>
+    </div>
+    <div id="folha-inicio-lista-wrap" hidden>
+      <p class="meta-img" style="margin-top:.6rem">Templates salvos</p>
+      <ul class="folha-prod-lista" id="folha-inicio-lista"></ul>
+    </div>
+  </div>
+</div>
+
+<div class="folha-modal" id="folha-modal-salvar" hidden>
+  <div class="folha-modal-box">
+    <h3>Salvar como…</h3>
+    <p class="meta-img">Escolha o destino.</p>
+    <div class="folha-modal-acoes" style="flex-direction:column;align-items:stretch">
+      <button type="button" class="botao botao--claro" id="folha-salvar-projeto">Salvar projeto do template</button>
+      <button type="button" class="botao" id="folha-export-template">Exportar template</button>
+      <button type="button" class="botao" data-fmt="png">Exportar PNG</button>
+      <button type="button" class="botao" data-fmt="jpg">Exportar JPG</button>
+      <button type="button" class="botao" data-fmt="pdf">Exportar PDF</button>
+    </div>
+    <button type="button" class="botao botao--fantasma" id="folha-modal-salvar-cancel">Cancelar</button>
+  </div>
+</div>
+
+<div class="folha-modal" id="folha-modal-img" hidden>
+  <div class="folha-modal-box">
+    <h3>Imagem personalizada</h3>
+    <p class="meta-img">Envie um arquivo, arraste para a área abaixo ou informe uma URL.</p>
+    <div class="folha-drop" id="folha-drop">
+      <span>Solte a imagem aqui ou clique para selecionar</span>
+      <input type="file" id="folha-file-img" accept="image/*" hidden>
+    </div>
+    <label class="meta-img">URL da imagem</label>
+    <input type="url" id="folha-img-url" class="folha-input" placeholder="https://…">
+    <div class="folha-modal-acoes">
+      <button type="button" class="botao botao--claro" id="folha-img-ok">Usar URL</button>
+      <button type="button" class="botao botao--fantasma" id="folha-img-cancel">Cancelar</button>
+    </div>
+    <p class="meta-img">Arquivo do PC é aplicado ao selecionar ou soltar.</p>
+  </div>
+</div>
+
+<style>
+.folha-shell {
+  display: grid;
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+  gap: 1rem;
+  min-height: calc(100dvh - var(--topo, 58px) - 2.5rem);
+  align-items: stretch;
+}
+.folha-lateral {
+  background: var(--ink-2, #121a2b);
+  border: 1px solid var(--line, #2a3550);
+  border-radius: 14px;
+  padding: .9rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+  max-height: calc(100dvh - var(--topo, 58px) - 2rem);
+  overflow: auto;
+}
+.folha-lat-cab h3 { margin: 0 0 .15rem; font-size: 1.05rem; }
+.folha-bloco { display: flex; flex-direction: column; gap: .35rem; }
+.folha-bloco label { font-size: .78rem; font-weight: 600; color: var(--texto-2); }
+.folha-input, .folha-select, .folha-props-corpo input, .folha-props-corpo select {
+  width: 100%;
+  font: inherit;
+  font-size: .88rem;
+  padding: .45rem .55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line, #2a3550);
+  background: var(--ink-3, #0c1220);
+  color: var(--texto, #e8eef8);
+  box-sizing: border-box;
+}
+.folha-custom-size { display: flex; align-items: center; gap: .35rem; }
+.folha-custom-size input { flex: 1; }
+.folha-check { display: flex; align-items: center; gap: .45rem; font-size: .85rem; }
+.folha-camadas-cab { display: flex; flex-direction: column; gap: .35rem; }
+.folha-camadas-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
+.folha-camadas-btns .botao { font-size: .72rem; padding: .3rem .45rem; }
+.folha-lista-camadas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+.folha-lista-camadas li {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .45rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgb(255 255 255 / .03);
+  cursor: pointer;
+  font-size: .82rem;
+}
+.folha-lista-camadas li:hover { background: rgb(255 255 255 / .06); }
+.folha-lista-camadas li.ativa {
+  border-color: rgb(29 111 224 / .5);
+  background: rgb(29 111 224 / .15);
+}
+.folha-lista-camadas .z-btns { margin-left: auto; display: flex; gap: .15rem; }
+.folha-lista-camadas button {
+  border: none; background: transparent; color: var(--texto-2);
+  cursor: pointer; font-size: .75rem; padding: .1rem .25rem;
+}
+.folha-props-corpo { display: flex; flex-direction: column; gap: .4rem; }
+.folha-props-corpo .prop-linha { display: grid; grid-template-columns: 5.5rem 1fr; gap: .35rem; align-items: center; font-size: .8rem; }
+.folha-acoes { display: flex; flex-direction: column; gap: .4rem; margin-top: auto; padding-top: .5rem; }
+.folha-canvas-wrap {
+  border: 1px solid var(--line, #2a3550);
+  border-radius: 14px;
+  background: rgb(0 0 0 / .25);
+  display: flex;
+  flex-direction: column;
+  min-height: 28rem;
+  overflow: hidden;
+}
+.folha-canvas-toolbar {
+  display: flex;
+  justify-content: space-between;
+  padding: .55rem .85rem;
+  border-bottom: 1px solid var(--line, #2a3550);
+  background: var(--ink-2, #121a2b);
+}
+.folha-canvas-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 1.25rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.folha-folha {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 8px 32px rgb(0 0 0 / .45);
+  flex-shrink: 0;
+  transform-origin: top center;
+}
+.folha-camada {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  user-select: none;
+  overflow: hidden;
+}
+.folha-camada.selecionada {
+  outline: 2px solid #1d6fe0;
+  outline-offset: 1px;
+  /* não sobe z-index — seleção estilo Photoshop */
+}
+.folha-camada-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  word-break: break-word;
+  line-height: 1.25;
+  padding: 1px;
+}
+.folha-camada-text .fp-unid {
+  display: block;
+  font-size: 0.22em;
+  font-weight: 700;
+  line-height: 1.05;
+  margin-top: 0.12em;
+  letter-spacing: 0.04em;
+  opacity: 0.82;
+  width: 100%;
+}
+
+.folha-custom-size {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-top: .25rem;
+}
+.folha-custom-size[hidden] { display: none !important; }
+.folha-custom-size input {
+  flex: 1;
+  width: 100%;
+  font: inherit;
+  font-size: .88rem;
+  padding: .45rem .55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line, #2a3550);
+  background: var(--ink-3, #0c1220);
+  color: var(--texto, #e8eef8);
+  box-sizing: border-box;
+}
+.folha-custom-size span { color: var(--texto-2); }
+.folha-check-inline {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .85rem;
+}
+.folha-camada .handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #1d6fe0;
+  border: 1px solid #fff;
+  border-radius: 2px;
+  z-index: 5;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .25);
+}
+.folha-camada .handle-nw { left: -5px; top: -5px; cursor: nwse-resize; }
+.folha-camada .handle-ne { right: -5px; top: -5px; cursor: nesw-resize; }
+.folha-camada .handle-sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.folha-camada .handle-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.folha-camada-img {
+  background: transparent !important;
+  overflow: hidden;
+}
+.folha-camada-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  display: block;
+}
+.folha-guia {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10000;
+  background: #ff4d6d;
+}
+.folha-guia-v {
+  width: 1px;
+  top: 0;
+}
+.folha-guia-h {
+  height: 1px;
+  left: 0;
+}
+.folha-guia-centro {
+  background: #ff2d55;
+  box-shadow: 0 0 0 1px rgb(255 45 85 / .35);
+  opacity: 0.95;
+}
+.folha-guia-v.folha-guia-centro { width: 2px; }
+.folha-guia-h.folha-guia-centro { height: 2px; }
+
+@media (max-width: 900px) {
+  .folha-shell { grid-template-columns: 1fr; }
+  .folha-lateral { max-height: none; }
+}
+
+.folha-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgb(0 0 0 / .55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.folha-modal[hidden] { display: none !important; }
+.folha-modal-box {
+  background: var(--ink-2, #121a2b);
+  border: 1px solid var(--line, #2a3550);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  width: min(26rem, 100%);
+  display: flex; flex-direction: column; gap: .7rem;
+}
+.folha-modal-box h3 { margin: 0; }
+.folha-modal-acoes { display: flex; flex-wrap: wrap; gap: .45rem; }
+.folha-drop {
+  border: 2px dashed var(--line, #2a3550);
+  border-radius: 12px;
+  padding: 1.4rem 1rem;
+  text-align: center;
+  color: var(--texto-2);
+  cursor: pointer;
+  background: rgb(255 255 255 / .03);
+}
+.folha-drop.over { border-color: #1d6fe0; background: rgb(29 111 224 / .12); }
+.folha-camada-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  display: block;
+}
+.folha-camada-img.fit-cover img { object-fit: cover; }
+.folha-camada-img.fit-fill-height img { object-fit: cover; object-position: center center; }
+
+
+
+.folha-busca-modo { display: flex; gap: .9rem; margin-bottom: .2rem; }
+.folha-prod-lista {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 18rem; overflow: auto;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.folha-prod-lista li {
+  display: flex; flex-direction: column; gap: .1rem;
+  padding: .55rem .65rem; border-radius: 8px;
+  border: 1px solid var(--line, #2a3550);
+  cursor: pointer; background: rgb(255 255 255 / .03);
+  font-size: .88rem;
+}
+.folha-prod-lista li:hover { background: rgb(29 111 224 / .15); border-color: rgb(29 111 224 / .45); }
+.folha-prod-lista .ean { font-family: ui-monospace, monospace; font-size: .78rem; color: var(--texto-2); }
+.folha-camada-text { overflow: visible; }
+
+.folha-preco-modo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .55rem;
+  margin-top: .35rem; padding: .4rem .5rem;
+  border-radius: 8px; background: rgb(255 255 255 / .04);
+  border: 1px solid var(--line, #2a3550);
+}
+</style>

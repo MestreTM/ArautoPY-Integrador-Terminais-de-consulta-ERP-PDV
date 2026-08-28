@@ -36,41 +36,49 @@ def pasta_plugins() -> Path:
 
 
 # Plugins copiados automaticamente na primeira subida (se a pasta ainda não existir).
-_PLUGINS_PADRAO = ("gerenciador_midia_tc506", "explorador_banco")
+_PLUGINS_PADRAO = ("gerenciador_midia_tc506", "explorador_banco", "folhas_promocionais")
 
 
 def eh_padrao(plugin_id: str) -> bool:
-    """Plugins embutidos: não podem ser desinstalados, só desativados."""
-    pid = (plugin_id or "").strip()
-    return pid in _PLUGINS_PADRAO
+    """Mantido por compatibilidade. Nenhum plugin é mais obrigatório."""
+    return False
 
 
 def _garantir_plugins_padrao() -> None:
-    """Instala plugins padrão e mantém o código alinhado com os exemplos embutidos."""
+    """Oferece os plugins embutidos só na primeira vez. Depois o usuário manda."""
     import shutil
     exemplos = Path(__file__).resolve().parent / "exemplos"
+    marca = PLUGINS_DIR / ".embutidos.json"
+    ja = set()
+    if marca.is_file():
+        try:
+            ja = set(json.loads(marca.read_text(encoding="utf-8")).get("oferecidos") or [])
+        except Exception:
+            ja = set()
+    mudou = False
     for nome in _PLUGINS_PADRAO:
         origem = exemplos / nome
         if not origem.is_dir():
             continue
         destino = PLUGINS_DIR / nome
+        if nome in ja:
+            continue
         try:
             if not destino.exists():
                 shutil.copytree(origem, destino)
-                log.info("Plugin padrão instalado: %s", destino)
-                continue
-            # Atualiza arquivos do padrão (não apaga a pasta; sobrescreve o código)
-            for src in origem.rglob("*"):
-                if not src.is_file():
-                    continue
-                if src.name == "__pycache__" or "__pycache__" in src.parts:
-                    continue
-                rel = src.relative_to(origem)
-                dst = destino / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dst)
+                log.info("Plugin embutido oferecido: %s", destino)
+            ja.add(nome)
+            mudou = True
         except OSError:
-            log.debug("Não foi possível instalar/atualizar plugin padrão %s", nome, exc_info=True)
+            log.debug("Não foi possível oferecer plugin embutido %s", nome, exc_info=True)
+    if mudou or not marca.is_file():
+        try:
+            marca.write_text(
+                json.dumps({"oferecidos": sorted(ja)}, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
 
 
 def _ler_estado() -> dict[str, bool]:
@@ -114,11 +122,13 @@ def definir_habilitado(plugin_id: str, valor: bool) -> None:
 def _descobrir_pastas() -> list[Path]:
     base = pasta_plugins()
     pastas = []
+    ignorar = {".estado_plugins", "_backup", "__pycache__"}
     for p in sorted(base.iterdir()) if base.is_dir() else []:
-        if p.is_dir() and (p / "plugin.py").is_file():
+        if not p.is_dir() or p.name in ignorar or p.name.startswith("."):
+            continue
+        if (p / "plugin.py").is_file():
             pastas.append(p)
-        elif p.is_dir() and (p / "__init__.py").is_file() and p.name != "__pycache__":
-            # aceita pacote com setup no __init__
+        elif (p / "__init__.py").is_file():
             pastas.append(p)
     return pastas
 
@@ -341,14 +351,6 @@ def desinstalar(plugin_id: str) -> dict:
     pid = _id_seguro(plugin_id)
     if not pid:
         return {"ok": False, "detail": "ID inválido."}
-    if eh_padrao(pid):
-        return {
-            "ok": False,
-            "detail": (
-                f"O plugin '{pid}' é padrão do ArautoPY e não pode ser desinstalado. "
-                "Use Desativar se não quiser usá-lo."
-            ),
-        }
     destino = pasta_plugins() / pid
     if not destino.is_dir():
         return {"ok": False, "detail": f"Plugin '{pid}' não encontrado."}

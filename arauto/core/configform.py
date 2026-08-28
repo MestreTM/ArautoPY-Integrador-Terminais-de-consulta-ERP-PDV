@@ -19,7 +19,8 @@ REINICIO = {
 # Aplicadas em tempo de execução via arauto.core.runtime
 RECARGA_BASE = {
     "DB_MODE", "DB_URL", "DB_USER", "DB_PASSWORD",
-    "DB_PRODUCT_TABLE_NAME", "DB_COL_BARCODE", "DB_COL_DESCRIPITION",
+    "DB_PRODUCT_TABLE_NAME", "DB_COL_BARCODE", "DB_COL_BARCODE_ALT",
+    "DB_COL_DESCRIPITION",
     "DB_COL_PRICE1", "DB_COL_PRICE2", "DB_RELOAD_INTERVAL_MIN",
     "PATH_FILE_PRODUCT", "TXT_DB_RELOAD_INTERVAL_MIN",
 }
@@ -44,7 +45,9 @@ PRESETS_BASE = [
         "nota": (
             "O caminho do arquivo .fdb varia conforme a instalação do DBware "
             "(ex.: C:/DBVenda/DB/dbvenda.fdb). Ajuste DB_URL para o caminho real "
-            "no seu computador e confira usuário/senha do Firebird."
+            "no seu computador e confira usuário/senha do Firebird. "
+            "Códigos de balança (PLU) ficam em REFERENCIA quando CODIGO_BARRA está vazio. "
+            "Tabela CAD_PRODUTOS, colunas CODIGO_BARRA, REFERENCIA, DESCRICAO, PRC_VENDA."
         ),
         "valores": {
             "DB_MODE": "EXTERNAL_SQL",
@@ -54,6 +57,7 @@ PRESETS_BASE = [
             ),
             "DB_PRODUCT_TABLE_NAME": "CAD_PRODUTOS",
             "DB_COL_BARCODE": "CODIGO_BARRA",
+            "DB_COL_BARCODE_ALT": "REFERENCIA",
             "DB_COL_DESCRIPITION": "DESCRICAO",
             "DB_COL_PRICE1": "PRC_VENDA",
             "DB_COL_PRICE2": "PRC_VENDA",
@@ -152,11 +156,19 @@ def esquema() -> list[dict]:
                        ajuda="Arquivo UTF-8 no formato código|descrição|preço1|preço2|"),
                 _campo("TXT_DB_RELOAD_INTERVAL_MIN", "Recarregar a cada (min)",
                        tipo="numero", minimo=1, maximo=1440, depende="EXTERNAL_TXT"),
-                _campo("DB_URL", "URL de conexão", mono=True, depende="EXTERNAL_SQL",
+                _campo("DB_URL", "Conexão do banco", mono=True, depende="EXTERNAL_SQL",
                        exemplo="firebird+firebird://SYSDBA:masterkey@localhost/C:/produtos/dbvenda.fdb",
-                       ajuda="Formato SQLAlchemy. Exige o driver do banco instalado."),
+                       ajuda="Firebird, PostgreSQL, MySQL/MariaDB, SQL Server ou SQLite. Use Configurar."),
                 _campo("DB_PRODUCT_TABLE_NAME", "Tabela", mono=True, depende="EXTERNAL_SQL"),
                 _campo("DB_COL_BARCODE", "Coluna do código", mono=True, depende="EXTERNAL_SQL"),
+                _campo("DB_COL_BARCODE_ALT", "Coluna de códigos adicional", mono=True,
+                       depende="EXTERNAL_SQL",
+                       exemplo="REFERENCIA",
+                       ajuda="Exceção: usada só quando a coluna do código (código de barras) "
+                             "vier vazia na linha. Deixe vazio para ignorar. "
+                             "No DBware o PLU da balança costuma estar em REFERENCIA quando "
+                             "CODIGO_BARRA está em branco. Plugins leem produto.codigo_adicional "
+                             "e service.mapeamento_colunas()."),
                 _campo("DB_COL_DESCRIPITION", "Coluna da descrição", mono=True,
                        depende="EXTERNAL_SQL"),
                 _campo("DB_COL_PRICE1", "Coluna do preço 1", mono=True, depende="EXTERNAL_SQL"),
@@ -175,6 +187,14 @@ def esquema() -> list[dict]:
                 _campo("PORT_WEBVIEWER", "Porta do WebViewer", tipo="numero",
                        minimo=1, maximo=65535),
                 _campo("PORT_API", "Porta da API", tipo="numero", minimo=1, maximo=65535),
+                _campo("LOCAL_HOSTNAME", "Nome local (atalho)", mono=True,
+                       exemplo="arauto.localhost",
+                       ajuda="Padrão: arauto.localhost. O sistema resolve *.localhost "
+                             "para 127.0.0.1 sem administrador. "
+                             "Painel: http://arauto.localhost:6689/painel."),
+                _campo("OPEN_BROWSER_ON_START", "Abrir o painel ao iniciar", tipo="bool",
+                       ajuda="Ao subir o servidor, abre o navegador em "
+                             "http://arauto.localhost:6689/painel."),
                 _campo("AUTO_INIT_501", "Ativar protocolo SC501", tipo="bool",
                        ajuda="TC-406, TC-502, TC-505, TC-507, Busca Preço G2. "
                              "Desligado, a porta SC501 nem é aberta."),
@@ -249,6 +269,50 @@ def com_valores(settings: Settings) -> list[dict]:
 
 CHAVES_IMAGEM = {"PRODUCT_IMAGE_PACK_URL", "SHOW_PRODUCT_IMAGE", "PRODUCT_IMAGE_URL"}
 CHAVES_EXTRA = CHAVES_IMAGEM | {"AUTOSTART_ENABLED"}
+
+# Nomes genéricos que ainda não foram mapeados pelo usuário/preset.
+_TABELAS_GENERICAS = {"", "PRODUCTS", "products", "PRODUTOS"}
+
+
+def preset_por_id(pid: str) -> dict | None:
+    for p in PRESETS_BASE:
+        if p.get("id") == pid:
+            return p
+    return None
+
+
+def completar_mapeamento_sql(url: str, table: str, cols: dict | None = None, preset_id: str = "") -> tuple[str, dict]:
+    """Completa tabela/colunas com o preset (DBware → CAD_PRODUTOS, etc.)."""
+    cols = dict(cols or {})
+    table = (table or "").strip()
+    url = (url or "").strip()
+    preset = preset_por_id(preset_id) if preset_id else None
+    if preset is None:
+        for p in PRESETS_BASE:
+            vals = p.get("valores") or {}
+            purl = str(vals.get("DB_URL") or "")
+            if not purl:
+                continue
+            scheme = purl.split("://", 1)[0]
+            if scheme and scheme in url:
+                preset = p
+                break
+    if preset:
+        vals = preset.get("valores") or {}
+        if table in _TABELAS_GENERICAS:
+            table = str(vals.get("DB_PRODUCT_TABLE_NAME") or table)
+        pares = (
+            ("barcode", "DB_COL_BARCODE"),
+            ("description", "DB_COL_DESCRIPITION"),
+            ("price1", "DB_COL_PRICE1"),
+            ("price2", "DB_COL_PRICE2"),
+            ("barcode_alt", "DB_COL_BARCODE_ALT"),
+        )
+        for dest, origem in pares:
+            if not (cols.get(dest) or "").strip():
+                cols[dest] = str(vals.get(origem) or "")
+    return table, cols
+
 
 def chaves_permitidas() -> set[str]:
     return {c["chave"] for g in esquema() for c in g["campos"]} | CHAVES_EXTRA

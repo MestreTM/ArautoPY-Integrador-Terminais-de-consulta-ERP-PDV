@@ -173,22 +173,64 @@ def listar_conexoes_sc504() -> list:
     return list((getattr(srv, "conexoes", None) or {}).values())
 
 
+def _normalizar_mac(mac: str) -> str:
+    """Normaliza MAC para comparação (AA:BB:CC:DD:EE:FF)."""
+    s = (mac or "").strip().upper().replace("-", ":")
+    if not s:
+        return ""
+    # aceita AABBCCDDEEFF
+    hexonly = "".join(c for c in s if c in "0123456789ABCDEF")
+    if len(hexonly) == 12 and ":" not in s:
+        s = ":".join(hexonly[i:i + 2] for i in range(0, 12, 2))
+    return s
+
+
 def conexao_sc504(peer: str):
-    """Conexão SC504 viva pelo peer ``ip:porta``, ou None."""
+    """Conexão SC504 viva pelo peer ``ip:porta`` **ou** pelo MAC, ou None.
+
+    O MAC vem do IDvGetUID e é o identificador estável do aparelho
+    (o IP pode mudar entre sessões).
+    """
     srv = _sc504
     if srv is None or not peer:
         return None
-    return (getattr(srv, "conexoes", None) or {}).get(peer)
+    conexoes = getattr(srv, "conexoes", None) or {}
+    if peer in conexoes:
+        return conexoes[peer]
+    mac_alvo = _normalizar_mac(peer)
+    if not mac_alvo:
+        return None
+    for conn in conexoes.values():
+        mac = _normalizar_mac(getattr(conn, "mac", "") or "")
+        if mac and mac == mac_alvo:
+            return conn
+    return None
 
 
 def peers_sc504() -> list[dict]:
-    """Resumo dos terminais SC504 conectados (para UI/plugins)."""
+    """Resumo dos terminais SC504 conectados (para UI/plugins).
+
+    ``id`` prefere o MAC (estável); se ainda não chegou o UID, cai no peer.
+    """
     out = []
     for conn in listar_conexoes_sc504():
         term = getattr(conn, "terminal", None)
+        peer = getattr(conn, "peer", "") or ""
+        mac = _normalizar_mac(
+            getattr(conn, "mac", "") or getattr(term, "mac", "") or ""
+        )
+        modelo = getattr(term, "model", None) or ""
+        nome = (
+            getattr(conn, "nome_aparelho", "")
+            or getattr(term, "nome_aparelho", "")
+            or ""
+        )
         out.append({
-            "peer": getattr(conn, "peer", ""),
-            "modelo": getattr(term, "model", None) or "",
+            "peer": peer,
+            "mac": mac,
+            "id": mac or peer,  # chave estável para configuração
+            "modelo": modelo,
+            "nome_aparelho": nome,
             "tipo": getattr(term, "tipo", None),
         })
     return out

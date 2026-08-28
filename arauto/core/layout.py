@@ -35,6 +35,121 @@ BASE_LARGURA, BASE_ALTURA = 480, 272
 FONTE_NORMAL = "DejaVuSans.ttf"
 FONTE_NEGRITO = "DejaVuSans-Bold.ttf"
 
+# Arquivos de fonte que existem no firmware do TC Server / aparelho.
+# Roboto é o padrão de fábrica do TC-508 (mesmo sem extensão de arquivo).
+FONTES_APARELHO: tuple[str, ...] = (
+    "DejaVuSans.ttf",
+    "DejaVuSans-Bold.ttf",
+    "DejaVuSans-Oblique.ttf",
+    "DejaVuSans-BoldOblique.ttf",
+    "DejaVuSansMono.ttf",
+    "DejaVuSansMono-Bold.ttf",
+    "DejaVuSansMono-Oblique.ttf",
+    "DejaVuSansMono-BoldOblique.ttf",
+    "DejaVuSerif.ttf",
+    "DejaVuSerif-Bold.ttf",
+    "DejaVuSerif-Oblique.ttf",
+    "DejaVuSerif-BoldOblique.ttf",
+    "Roboto",
+    "Vera.ttf",
+    "VeraBd.ttf",
+    "VeraIt.ttf",
+    "VeraBI.ttf",
+    "VeraMono.ttf",
+    "VeraMoBd.ttf",
+    "VeraMoIt.ttf",
+    "VeraMoBI.ttf",
+    "VeraSe.ttf",
+    "VeraSeBd.ttf",
+    "swz721m.ttf",
+    "SWZ721MI.TTF",
+    "cour.pfa",
+    "courb.pfa",
+    "couri.pfa",
+    "courbi.pfa",
+    "cursor.pfa",
+    "c0583bt_.pfb",
+    "c0611bt_.pfb",
+    "c0632bt_.pfb",
+    "c0633bt_.pfb",
+    "c0648bt_.pfb",
+    "c0649bt_.pfb",
+    "l047013t.pfa",
+    "l047016t.pfa",
+    "l047033t.pfa",
+    "l047036t.pfa",
+    "l048013t.pfa",
+    "l048016t.pfa",
+    "l048033t.pfa",
+    "l048036t.pfa",
+    "l049013t.pfa",
+    "l049016t.pfa",
+    "l049033t.pfa",
+    "l049036t.pfa",
+    "UTRG____.pfa",
+    "UTB_____.pfa",
+    "UTI_____.pfa",
+    "UTBI____.pfa",
+    "helvetica_80_50.qpf",
+    "helvetica_80_50i.qpf",
+    "helvetica_80_75.qpf",
+    "helvetica_80_75i.qpf",
+    "helvetica_100_50.qpf",
+    "helvetica_100_50i.qpf",
+    "helvetica_100_75.qpf",
+    "helvetica_100_75i.qpf",
+    "helvetica_120_50.qpf",
+    "helvetica_120_50i.qpf",
+    "helvetica_120_75.qpf",
+    "helvetica_120_75i.qpf",
+    "helvetica_140_50.qpf",
+    "helvetica_140_50i.qpf",
+    "helvetica_140_75.qpf",
+    "helvetica_140_75i.qpf",
+    "helvetica_180_50.qpf",
+    "helvetica_180_50i.qpf",
+    "helvetica_180_75.qpf",
+    "helvetica_180_75i.qpf",
+    "helvetica_240_50.qpf",
+    "helvetica_240_50i.qpf",
+    "helvetica_240_75.qpf",
+    "helvetica_240_75i.qpf",
+    "fixed_70_50.qpf",
+    "fixed_120_50.qpf",
+    "micro_40_50.qpf",
+    "unifont_160_50.qpf",
+    "japanese_230_50.qpf",
+)
+
+# Padrão de fábrica por termType (captura do ExhibitionDialog / SC504).
+FONTES_PADRAO_MODELO: dict[int, tuple[str, str]] = {
+    504: ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"),
+    506: ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"),
+    508: ("Roboto", "Roboto"),
+    600: ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"),
+    601: ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"),
+}
+
+CORES_HEX: dict[int, str] = {
+    256: "#000000",
+    257: "#8B4513",
+    258: "#008000",
+    259: "#808000",
+    260: "#000080",
+    261: "#800080",
+    262: "#708090",
+    263: "#C0C0C0",
+    264: "#C0C0C0",
+    265: "#FF0000",
+    266: "#00FF00",
+    267: "#FFFF00",
+    268: "#0000FF",
+    269: "#FF00FF",
+    270: "#00FFFF",
+    271: "#FFFFFF",
+    65535: "transparent",
+}
+
 # Paleta oficial dos terminais Gertec (códigos 0x0100–0x010F + transparente).
 # Valores decimais usados em IDvShowText / limpeza de tela.
 CORES: dict[str, int] = {
@@ -88,7 +203,8 @@ NOMES_ELEMENTOS = dict(ELEMENTOS)
 # A foto fica à direita; textos à esquerda — evita fundo preto em tela cheia.
 PADRAO_BASE: dict[str, dict] = {
     "imagem":     {"x": 290, "y": 20, "tamanho": 16, "negrito": False,
-                   "visivel": True, "largura": 170, "linhas": 1, "altura": 170},
+                   "visivel": True, "largura": 170, "linhas": 1, "altura": 170,
+                   "trava_proporcao": False},
     "codigo":     {"x": 20, "y": 75, "tamanho": 16, "negrito": False,
                    "visivel": True, "largura": 0, "linhas": 1, "altura": 0},
     "descricao":  {"x": 20, "y": 40, "tamanho": 22, "negrito": False,
@@ -116,6 +232,7 @@ class Elemento:
     largura: int = 0    # texto: largura de quebra; imagem: largura da caixa
     linhas: int = 1     # máximo de linhas quando há quebra
     altura: int = 0     # só imagem: altura da caixa em pixels
+    trava_proporcao: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -178,6 +295,7 @@ def _escalar(base: dict, largura: int, altura: int) -> dict:
         "largura": int(base.get("largura", 0) * fx),
         "linhas": base.get("linhas", 1),
         "altura": int(base.get("altura", 0) * fy),
+        "trava_proporcao": bool(base.get("trava_proporcao", False)),
     }
 
 
@@ -226,12 +344,15 @@ def quebrar_texto(texto: str, tamanho: int, largura: int,
 
 def layout_padrao(modelo: int) -> Layout:
     _, largura, altura = MODELOS.get(modelo, ("", BASE_LARGURA, BASE_ALTURA))
+    fonte_n, fonte_b = FONTES_PADRAO_MODELO.get(modelo, (FONTE_NORMAL, FONTE_NEGRITO))
     return Layout(
         modelo=modelo,
         elementos={
             chave: Elemento(**_escalar(base, largura, altura))
             for chave, base in PADRAO_BASE.items()
         },
+        fonte_normal=fonte_n,
+        fonte_negrito=fonte_b,
     )
 
 
@@ -279,6 +400,7 @@ class Layouts:
                 largura=max(0, int(valores.get("largura", base.largura))),
                 linhas=max(1, min(6, int(valores.get("linhas", base.linhas)))),
                 altura=max(0, int(valores.get("altura", base.altura))),
+                trava_proporcao=bool(valores.get("trava_proporcao", False)),
             )
         return Layout(
             modelo=modelo,
@@ -286,8 +408,8 @@ class Layouts:
             cor_texto=int(bruto.get("cor_texto", COR_TEXTO)),
             cor_fundo_texto=int(bruto.get("cor_fundo_texto", COR_SEM_FUNDO)),
             cor_tela=int(bruto.get("cor_tela", COR_LIMPAR_TELA)),
-            fonte_normal=str(bruto.get("fonte_normal", FONTE_NORMAL)),
-            fonte_negrito=str(bruto.get("fonte_negrito", FONTE_NEGRITO)),
+            fonte_normal=str(bruto.get("fonte_normal") or FONTES_PADRAO_MODELO.get(modelo, (FONTE_NORMAL, FONTE_NEGRITO))[0]),
+            fonte_negrito=str(bruto.get("fonte_negrito") or FONTES_PADRAO_MODELO.get(modelo, (FONTE_NORMAL, FONTE_NEGRITO))[1]),
         )
 
     def salvar(self) -> None:
@@ -374,10 +496,13 @@ def validar(modelo: int, bruto: dict) -> list[str]:
         if box_w < 0:
             erros.append(f"{rotulo}: a largura da quebra não pode ser negativa")
 
+    ext_ok = (".ttf", ".otf", ".pfb", ".pfa", ".qpf")
     for campo in ("fonte_normal", "fonte_negrito"):
         nome = str(bruto.get(campo, "")).strip()
-        if nome and not nome.lower().endswith((".ttf", ".otf")):
-            erros.append(f"{campo}: informe o arquivo da fonte, terminando em .ttf")
+        if not nome:
+            erros.append(f"{campo}: informe o arquivo da fonte do aparelho")
+        elif "." in nome and not nome.lower().endswith(ext_ok):
+            erros.append(f"{campo}: extensão não reconhecida no aparelho")
     return erros
 
 
@@ -391,5 +516,21 @@ def get_layouts() -> Layouts:
         if _instancia is None:
             _instancia = Layouts()
         return _instancia
+
+
+def hex_cor(codigo: int, fallback: str = "#C0C0C0") -> str:
+    if int(codigo) == COR_SEM_FUNDO:
+        return "transparent"
+    if int(codigo) == 271:
+        return "#FFFFFF"
+    return CORES_HEX.get(int(codigo), fallback)
+
+
+def rgb_cor(codigo: int, fallback: tuple[int, int, int] = (255, 255, 255)) -> tuple[int, int, int]:
+    """RGB 0–255 da paleta Gertec — usado no bitmap de IDvShowImg."""
+    hex_ = hex_cor(codigo, "")
+    if not hex_ or hex_ == "transparent" or not hex_.startswith("#") or len(hex_) < 7:
+        return fallback
+    return (int(hex_[1:3], 16), int(hex_[3:5], 16), int(hex_[5:7], 16))
 
 

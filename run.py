@@ -144,6 +144,9 @@ class UvicornThread(threading.Thread):
     def run(self) -> None:
         try:
             self.server.run()
+        except OSError as exc:
+            from arauto.core.netutil import log_falha_porta
+            log_falha_porta(log, self.label, self.port, exc, host=self.host)
         except Exception:
             log.exception("O servidor %s parou", self.label)
 
@@ -258,6 +261,18 @@ def main() -> int:
 
     dizer(BANNER.format(versao=APP_VERSION))
 
+    atalho = None
+    if args.modo in ("todos", "webviewer"):
+        try:
+            from arauto.core import localurl as _localurl
+            hostname = _localurl.hostname_efetivo(settings.get("LOCAL_HOSTNAME"))
+            atalho = {
+                "hostname": hostname,
+                "url": _localurl.url_painel(hostname, args.porta_webviewer),
+            }
+        except Exception:
+            log.debug("Atalho local não aplicado", exc_info=True)
+
     # A migração de dados acontece na importação de settings, antes de existir
     # logging; só agora dá para contar o que houve.
     for aviso in AVISOS_INICIALIZACAO:
@@ -300,39 +315,55 @@ def main() -> int:
     sc501: Sc501Server | None = None
     sc504: Sc504Server | None = None
 
+    # Aviso antecipado se a porta já estiver ocupada (mensagem clara, sem stack).
+    from arauto.core.netutil import mensagem_falha_porta, testar_bind
+
+    def _avisar_porta(servico: str, porta: int) -> bool:
+        err = testar_bind(args.host, porta)
+        if err is None:
+            return True
+        msg = mensagem_falha_porta(servico, porta, err, host=args.host)
+        log.error("%s", msg)
+        dizer(f"AVISO: {msg}")
+        return False
+
     if args.modo in ("todos", "sc501") and settings.get_bool("AUTO_INIT_501", True):
-        sc501 = Sc501Server(
-            service, host=args.host, port=args.porta_sc501,
-            passivo=settings.get_bool("SC501_PASSIVE", False),
-        )
-        sc501.start()
+        if _avisar_porta("SC501", args.porta_sc501):
+            sc501 = Sc501Server(
+                service, host=args.host, port=args.porta_sc501,
+                passivo=settings.get_bool("SC501_PASSIVE", False),
+            )
+            sc501.start()
 
     # SC504 só sobe se pedido explicitamente ou habilitado na configuração:
     # a maioria das lojas tem só terminais SC501, e abrir porta à toa é
     # superfície de ataque sem contrapartida.
     if args.modo == "sc504" or (args.modo == "todos"
                                 and settings.get_bool("AUTO_INIT_504", True)):
-        sc504 = Sc504Server(
-            service, host=args.host, port=args.porta_sc504,
-            formato=settings.get("SC504_FRAME"),
-            debug=args.debug_protocolo or settings.get_bool("PROTOCOL_DEBUG", False),
-            passivo=args.passivo or settings.get_bool("SC504_PASSIVE", False),
-        )
-        sc504.start()
+        if _avisar_porta("SC504", args.porta_sc504):
+            sc504 = Sc504Server(
+                service, host=args.host, port=args.porta_sc504,
+                formato=settings.get("SC504_FRAME"),
+                debug=args.debug_protocolo or settings.get_bool("PROTOCOL_DEBUG", False),
+                passivo=args.passivo or settings.get_bool("SC504_PASSIVE", False),
+            )
+            sc504.start()
 
     arauto_runtime.registrar(
         service=service, sc501=sc501, sc504=sc504, modo=args.modo,
     )
 
     if args.modo in ("todos", "api"):
-        t = UvicornThread(create_api(service), args.host, args.porta_api, "api")
-        t.start()
-        threads.append(t)
+        if _avisar_porta("API", args.porta_api):
+            t = UvicornThread(create_api(service), args.host, args.porta_api, "api")
+            t.start()
+            threads.append(t)
 
     if args.modo in ("todos", "webviewer"):
-        t = UvicornThread(create_viewer(service), args.host, args.porta_webviewer, "webviewer")
-        t.start()
-        threads.append(t)
+        if _avisar_porta("WebViewer", args.porta_webviewer):
+            t = UvicornThread(create_viewer(service), args.host, args.porta_webviewer, "webviewer")
+            t.start()
+            threads.append(t)
 
     time.sleep(0.6)  # deixa o uvicorn abrir as portas antes de imprimir os links
     dizer("Serviços no ar:")
@@ -346,6 +377,14 @@ def main() -> int:
             dizer(f"              http://{alvo}:{t.port}/monitor  tráfego cru dos terminais")
         else:
             dizer(f"  API         http://{alvo}:{t.port}/docs     documentação interativa")
+    if atalho:
+        dizer(f"  Atalho      {atalho['url']}")
+        try:
+            from arauto.core import localurl as _localurl
+            if settings.get_bool("OPEN_BROWSER_ON_START", True):
+                _localurl.abrir_quando_pronto(atalho["url"], atraso_s=0.8)
+        except Exception:
+            log.debug("Não abri o navegador", exc_info=True)
     if sc501:
         dizer(f"  SC501       tcp://{args.host}:{args.porta_sc501}      TC-406/502/505/507")
     if sc504:

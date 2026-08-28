@@ -4,6 +4,7 @@
 
   const { $, esc, json, aviso } = window.TC;
   const form = $("form-config");
+  if (!form) return;
 
   /* Navegação por seções na barra lateral. */
   function ativarSecao(id) {
@@ -28,20 +29,23 @@
   function aplicarDependencias() {
     const modo = form.elements["DB_MODE"] ? form.elements["DB_MODE"].value : "";
     document.querySelectorAll("[data-depende]").forEach((campo) => {
-      const aceitos = campo.dataset.depende.split(",").map((s) => s.trim());
-      campo.hidden = !aceitos.includes(modo);
+      const aceitos = (campo.dataset.depende || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const show = !aceitos.length || aceitos.includes(modo);
+      campo.hidden = !show;
     });
   }
 
   if (form.elements["DB_MODE"]) {
     form.elements["DB_MODE"].addEventListener("change", aplicarDependencias);
   }
+  // roda após o layout/CSS para garantir o estado inicial correto
   aplicarDependencias();
+  requestAnimationFrame(aplicarDependencias);
 
   function coletar() {
     const config = {};
     Array.from(form.elements).forEach((el) => {
-      if (!el.name) return;
+      if (!el.name || el.disabled) return;
       config[el.name] = el.type === "checkbox" ? String(el.checked) : el.value;
     });
     return { config };
@@ -76,6 +80,23 @@
   });
 
   $("btn-descartar").addEventListener("click", () => location.reload());
+
+  if ($("btn-conta")) {
+    $("btn-conta").addEventListener("click", async () => {
+      const usuario = ($("conta-usuario") && $("conta-usuario").value || "").trim();
+      const senha = ($("conta-senha") && $("conta-senha").value) || "";
+      const senha2 = ($("conta-senha2") && $("conta-senha2").value) || "";
+      if (senha !== senha2) { aviso("As senhas não coincidem.", true); return; }
+      try {
+        const r = await json("/api/auth/conta", { method: "POST", body: { usuario, senha } });
+        aviso(r.detail || "Conta atualizada.");
+        if ($("conta-senha")) $("conta-senha").value = "";
+        if ($("conta-senha2")) $("conta-senha2").value = "";
+      } catch (e) {
+        aviso(e.message, true);
+      }
+    });
+  }
 
   $("btn-recarregar").addEventListener("click", async (ev) => {
     const botao = ev.currentTarget;
@@ -184,14 +205,30 @@
 
 
   /* ---------------------------------------------------- base de imagens */
+  function syncProgressoImagens(st) {
+    const box = $("img-progresso");
+    const fill = $("img-progresso-fill");
+    const txt = $("img-progresso-txt");
+    if (!box) return;
+    if (st && st.em_andamento) {
+      const pct = Math.max(0, Math.min(100, Number(st.progresso) || 0));
+      box.hidden = false;
+      if (fill) fill.style.width = pct + "%";
+      if (txt) txt.textContent = Math.round(pct) + "% · " + (st.mensagem || "Baixando…");
+    } else {
+      box.hidden = true;
+    }
+  }
+
   async function atualizarStatusImagens() {
     const badge = $("img-badge");
     const det = $("img-detalhe");
     const pasta = $("img-pasta");
-    if (!badge) return;
+    if (!badge) return null;
     try {
       const st = await json("/api/imagens/status");
       if (pasta) pasta.textContent = st.pasta || "—";
+      syncProgressoImagens(st);
       if (st.em_andamento) {
         badge.className = "badge-img badge-img--warn";
         badge.textContent = "Baixando…";
@@ -218,7 +255,9 @@
     } catch (e) {
       badge.className = "badge-img badge-img--no";
       badge.textContent = "Indisponível";
-      det.textContent = e.message;
+      if (det) det.textContent = e.message;
+      syncProgressoImagens(null);
+      return null;
     }
   }
 
@@ -235,6 +274,7 @@
       try {
         await json("/api/imagens/baixar-pacote", { method: "POST" });
         aviso("Download do GitHub iniciado — EAN iguais serão atualizados; demais permanecem.");
+        await atualizarStatusImagens();
         const timer = setInterval(async () => {
           const st = await atualizarStatusImagens();
           if (st && st.em_andamento) {
@@ -244,9 +284,10 @@
           clearInterval(timer);
           btn.disabled = false;
           btn.textContent = rotulo;
+          syncProgressoImagens(st);
           if (st && st.baixado) aviso("Pacote GitHub aplicado.");
           else if (st && st.ultimo_erro) aviso("Falha: " + st.ultimo_erro, true);
-        }, 2000);
+        }, 1500);
       } catch (e) {
         aviso("Não foi possível iniciar: " + e.message, true);
         btn.disabled = false;
@@ -303,6 +344,7 @@
 
   /* ---------------------------------------------------- presets base SQL */
   const PRESETS_BASE = window.ARAUTO_PRESETS_BASE || [];
+  let presetAtivo = "";
 
   function setCampo(chave, valor) {
     const el = $("c_" + chave);
@@ -325,22 +367,226 @@
         return;
       }
       const vals = preset.valores || {};
+      if (vals.DB_MODE) setCampo("DB_MODE", vals.DB_MODE);
+      if (typeof aplicarDependencias === "function") aplicarDependencias();
       Object.keys(vals).forEach((k) => setCampo(k, vals[k]));
       if (typeof aplicarDependencias === "function") aplicarDependencias();
+      // Garante o mapeamento mesmo se o campo ainda estava desabilitado.
+      ["DB_PRODUCT_TABLE_NAME", "DB_COL_BARCODE", "DB_COL_BARCODE_ALT",
+       "DB_COL_DESCRIPITION", "DB_COL_PRICE1", "DB_COL_PRICE2"].forEach((k) => {
+        if (vals[k] != null) setCampo(k, vals[k]);
+      });
+      presetAtivo = preset.id;
+      document.querySelectorAll(".preset-base").forEach((b) => {
+        b.classList.toggle("preset-base--ativo", b === botao);
+      });
       const nota = $("preset-base-nota");
       if (nota) {
         if (preset.nota) {
           nota.hidden = false;
-          nota.textContent = preset.nota;
+          nota.textContent = preset.nota +
+            (vals.DB_PRODUCT_TABLE_NAME ? " Tabela: " + vals.DB_PRODUCT_TABLE_NAME + "." : "");
         } else {
           nota.hidden = true;
           nota.textContent = "";
         }
       }
-      aviso("Preset \"" + preset.nome + "\" aplicado. Confira a URL e salve.");
+      aviso(
+        "Preset \"" + preset.nome + "\" aplicado" +
+        (vals.DB_PRODUCT_TABLE_NAME ? " (tabela " + vals.DB_PRODUCT_TABLE_NAME + ")" : "") +
+        ". Confira a URL e teste a conexão."
+      );
     });
   });
 
+
+
+
+  /* ---------------------------------------------------- montar URL SQL */
+  (function montarUrlSql() {
+    const urlInput = $("c_DB_URL");
+    const modal = $("modal-url");
+    const btnAbrir = $("btn-montar-url");
+    if (!urlInput || !btnAbrir) return;
+
+    let dialectos = [];
+
+    function enc(s) {
+      return encodeURIComponent(s || "");
+    }
+
+    function dialectoAtual() {
+      const id = ($("url-dialecto") && $("url-dialecto").value) || "";
+      return dialectos.find((d) => d.id === id) || dialectos[0] || null;
+    }
+
+    function aplicarVisibilidade() {
+      const d = dialectoAtual();
+      const sqlite = d && d.id === "sqlite";
+      const arquivo = !!(d && d.arquivo);
+      if ($("url-campo-host")) $("url-campo-host").hidden = sqlite;
+      if ($("url-campo-porta")) $("url-campo-porta").hidden = sqlite || !d || d.porta == null;
+      if ($("url-campo-user")) $("url-campo-user").hidden = sqlite;
+      if ($("url-campo-pass")) $("url-campo-pass").hidden = sqlite;
+      if ($("url-db-label")) $("url-db-label").textContent = arquivo ? "Arquivo do banco" : "Nome do banco";
+    }
+
+    function mascarar(u) {
+      return String(u || "").replace(/:([^:@/]+)@/, ":••••@");
+    }
+
+    function atualizarResumo(url) {
+      const est = $("db-url-estado");
+      const mask = $("db-url-mascara");
+      if (est) est.textContent = url ? "Conexão configurada" : "Nenhuma conexão configurada";
+      if (mask) {
+        mask.textContent = url
+          ? "URL salva no formulário. Abra Configurar para revisar ou colar outra."
+          : "A URL fica no modal. Use Configurar para montar ou colar.";
+      }
+    }
+
+    function avancadoLigado() {
+      return !!($("url-avancado") && $("url-avancado").checked);
+    }
+
+    function montar() {
+      const d = dialectoAtual();
+      const url = (window.TC && TC.montarSqlUrl)
+        ? TC.montarSqlUrl(d, {
+            avancado: avancadoLigado(),
+            url: $("url-bruta") ? $("url-bruta").value : "",
+            host: $("url-host") && $("url-host").value,
+            porta: $("url-porta") && $("url-porta").value,
+            user: $("url-user") && $("url-user").value,
+            pass: $("url-pass") && $("url-pass").value,
+            db: $("url-db") && $("url-db").value,
+          })
+        : "";
+      const prev = $("url-builder-preview");
+      if (prev) prev.textContent = url ? mascarar(url) : "—";
+      if ($("url-bruta") && !avancadoLigado()) $("url-bruta").value = url;
+      return url;
+    }
+
+    function preencherDeUrl(url) {
+      if (!url) {
+        aplicarVisibilidade();
+        montar();
+        return;
+      }
+      try {
+        const raw = String(url);
+        const d = dialectos.find((x) => raw.startsWith(x.scheme + "://")) || null;
+        if (d && $("url-dialecto")) $("url-dialecto").value = d.id;
+        aplicarVisibilidade();
+        const semScheme = raw.slice(((d && d.scheme) || "").length + 3);
+        let rest = semScheme;
+        let user = "", pass = "", host = "", porta = "", db = "";
+        if (rest.indexOf("@") >= 0) {
+          const cred = rest.slice(0, rest.indexOf("@"));
+          rest = rest.slice(rest.indexOf("@") + 1);
+          if (cred.indexOf(":") >= 0) {
+            user = decodeURIComponent(cred.split(":")[0] || "");
+            pass = decodeURIComponent(cred.split(":").slice(1).join(":") || "");
+          } else user = decodeURIComponent(cred);
+        }
+        const slash = rest.indexOf("/");
+        const hostport = slash >= 0 ? rest.slice(0, slash) : rest;
+        db = slash >= 0 ? rest.slice(slash + 1) : "";
+        if (hostport.indexOf(":") >= 0) {
+          host = hostport.split(":")[0];
+          porta = hostport.split(":")[1].split("?")[0];
+        } else host = hostport;
+        db = db.split("?")[0];
+        if ($("url-host")) $("url-host").value = host || "localhost";
+        if ($("url-porta")) $("url-porta").value = porta || (d && d.porta) || "";
+        if ($("url-user")) $("url-user").value = user;
+        if ($("url-pass")) $("url-pass").value = pass;
+        if ($("url-db")) $("url-db").value = db;
+      } catch (e) { /* ignora parse */ }
+      montar();
+    }
+
+    function abrir() {
+      const box = $("modal-url");
+      if (!box) { aviso("Modal de URL não encontrado.", true); return; }
+      if ($("url-avancado")) $("url-avancado").checked = false;
+      if ($("url-campo-avancado")) $("url-campo-avancado").hidden = true;
+      if ($("url-campos-simples")) $("url-campos-simples").hidden = false;
+      preencherDeUrl(urlInput.value);
+      if ($("url-bruta")) $("url-bruta").value = urlInput.value || "";
+      box.hidden = false;
+      const first = $("url-dialecto") || $("url-host");
+      if (first) first.focus();
+    }
+    function fechar() {
+      const box = $("modal-url");
+      if (box) box.hidden = true;
+    }
+
+    btnAbrir.addEventListener("click", (ev) => { ev.preventDefault(); abrir(); });
+    if ($("modal-url-fechar")) $("modal-url-fechar").addEventListener("click", fechar);
+    if ($("modal-url-cancelar")) $("modal-url-cancelar").addEventListener("click", fechar);
+    if ($("modal-url-fundo")) $("modal-url-fundo").addEventListener("click", fechar);
+    if ($("modal-url-aplicar")) {
+      $("modal-url-aplicar").addEventListener("click", () => {
+        const url = montar();
+        if (url) urlInput.value = url;
+        atualizarResumo(url);
+        fechar();
+        if (window.TC && window.TC.aviso) window.TC.aviso("URL montada. Teste a conexão antes de salvar.", "info");
+      });
+    }
+    document.addEventListener("keydown", (ev) => {
+      const box = $("modal-url");
+      if (ev.key === "Escape" && box && !box.hidden) fechar();
+    });
+
+    ["url-dialecto", "url-host", "url-porta", "url-user", "url-pass", "url-db"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("change", () => {
+        if (id === "url-dialecto") {
+          const d = dialectoAtual();
+          if (d) {
+            if ($("url-porta") && d.porta != null) $("url-porta").value = d.porta;
+            if ($("url-user") && d.usuario_padrao && !$("url-user").value) $("url-user").value = d.usuario_padrao;
+            if ($("url-pass") && d.senha_padrao && !$("url-pass").value) $("url-pass").value = d.senha_padrao;
+          }
+          aplicarVisibilidade();
+        }
+        montar();
+      });
+      el.addEventListener("input", montar);
+    });
+
+    if ($("url-avancado")) {
+      $("url-avancado").addEventListener("change", () => {
+        const on = avancadoLigado();
+        if ($("url-campo-avancado")) $("url-campo-avancado").hidden = !on;
+        if ($("url-campos-simples")) $("url-campos-simples").hidden = on;
+        if (on && $("url-bruta") && !$("url-bruta").value) $("url-bruta").value = montar();
+        montar();
+      });
+    }
+    if ($("url-bruta")) $("url-bruta").addEventListener("input", montar);
+
+    json("/api/config/dialectos").then((r) => {
+      dialectos = (r && r.itens) || [];
+      const sel = $("url-dialecto");
+      if (!sel) return;
+      if (!dialectos.length) {
+        sel.innerHTML = '<option value="">Nenhum driver SQL</option>';
+        return;
+      }
+      sel.innerHTML = dialectos.map((d) =>
+        `<option value="${d.id}">${d.rotulo}${d.instalado === false ? " (instale o driver)" : ""}</option>`
+      ).join("");
+      atualizarResumo(urlInput.value);
+    }).catch(() => {});
+    atualizarResumo(urlInput.value);
+  })();
 
 
   /* ---------------------------------------------------- testar SQL */
@@ -357,13 +603,22 @@
         out.style.color = "var(--texto-2)";
       }
       try {
+        const presetVals = ((PRESETS_BASE.find((p) => p.id === presetAtivo) || {}).valores) || {};
+        const valCampo = (id, fallback) => {
+          const el = $(id);
+          const atual = (el && el.value) ? String(el.value).trim() : "";
+          if (atual && atual.toUpperCase() !== "PRODUCTS") return atual;
+          return fallback || atual;
+        };
         const corpo = {
           DB_URL: ($("c_DB_URL") && $("c_DB_URL").value) || "",
-          DB_PRODUCT_TABLE_NAME: ($("c_DB_PRODUCT_TABLE_NAME") && $("c_DB_PRODUCT_TABLE_NAME").value) || "",
-          DB_COL_BARCODE: ($("c_DB_COL_BARCODE") && $("c_DB_COL_BARCODE").value) || "",
-          DB_COL_DESCRIPITION: ($("c_DB_COL_DESCRIPITION") && $("c_DB_COL_DESCRIPITION").value) || "",
-          DB_COL_PRICE1: ($("c_DB_COL_PRICE1") && $("c_DB_COL_PRICE1").value) || "",
-          DB_COL_PRICE2: ($("c_DB_COL_PRICE2") && $("c_DB_COL_PRICE2").value) || "",
+          DB_PRODUCT_TABLE_NAME: valCampo("c_DB_PRODUCT_TABLE_NAME", presetVals.DB_PRODUCT_TABLE_NAME),
+          DB_COL_BARCODE: valCampo("c_DB_COL_BARCODE", presetVals.DB_COL_BARCODE),
+          DB_COL_BARCODE_ALT: valCampo("c_DB_COL_BARCODE_ALT", presetVals.DB_COL_BARCODE_ALT),
+          DB_COL_DESCRIPITION: valCampo("c_DB_COL_DESCRIPITION", presetVals.DB_COL_DESCRIPITION),
+          DB_COL_PRICE1: valCampo("c_DB_COL_PRICE1", presetVals.DB_COL_PRICE1),
+          DB_COL_PRICE2: valCampo("c_DB_COL_PRICE2", presetVals.DB_COL_PRICE2),
+          preset_id: presetAtivo,
         };
         const r = await json("/api/config/testar-sql", {
           method: "POST",
@@ -440,6 +695,7 @@
   function preencherSelectsColunas(cols) {
     const ids = [
       ["sql-col-barcode", "c_DB_COL_BARCODE"],
+      ["sql-col-barcode-alt", "c_DB_COL_BARCODE_ALT"],
       ["sql-col-description", "c_DB_COL_DESCRIPITION"],
       ["sql-col-price1", "c_DB_COL_PRICE1"],
       ["sql-col-price2", "c_DB_COL_PRICE2"],
@@ -462,10 +718,15 @@
           }
           return "";
         };
-        if (nome.includes("barcode")) sel.value = pick(["codigo_barra", "cod_barra", "ean", "gtin", "barcode", "barra"]);
+        if (nome.includes("barcode-alt")) sel.value = pick(["referencia", "ref", "plu", "codigo_interno"]);
+        else if (nome.includes("barcode")) sel.value = pick(["codigo_barra", "cod_barra", "ean", "gtin", "barcode", "barra"]);
         if (nome.includes("description")) sel.value = pick(["descricao", "description", "nome", "produto"]);
         if (nome.includes("price1")) sel.value = pick(["prc_venda", "preco_venda", "preco", "price", "valor"]);
         if (nome.includes("price2")) sel.value = pick(["prc_venda_prazo", "preco2", "price2"]);
+      }
+      if (!sel.dataset.amostraBound) {
+        sel.dataset.amostraBound = "1";
+        sel.addEventListener("change", atualizarAmostraSql);
       }
     });
   }
@@ -496,9 +757,75 @@
       preencherSelectsColunas(_sqlColunas);
       if (status) status.textContent = _sqlColunas.length + " coluna(s)";
       if ($("modal-sql-aplicar")) $("modal-sql-aplicar").disabled = false;
+      atualizarAmostraSql();
     } catch (e) {
       if (status) status.textContent = e.message;
     }
+  }
+
+  let _sqlAmostraOffset = 0;
+  let _sqlAmostraCodigo = "";
+
+  async function atualizarAmostraSql(avancar) {
+    const box = $("sql-amostra");
+    if (!box) return;
+    const tabela = _sqlTabelaSel || ($("c_DB_PRODUCT_TABLE_NAME") && $("c_DB_PRODUCT_TABLE_NAME").value) || "";
+    const cols = {
+      DB_COL_BARCODE: ($("sql-col-barcode") && $("sql-col-barcode").value) || "",
+      DB_COL_BARCODE_ALT: ($("sql-col-barcode-alt") && $("sql-col-barcode-alt").value) || "",
+      DB_COL_DESCRIPITION: ($("sql-col-description") && $("sql-col-description").value) || "",
+      DB_COL_PRICE1: ($("sql-col-price1") && $("sql-col-price1").value) || "",
+      DB_COL_PRICE2: ($("sql-col-price2") && $("sql-col-price2").value) || "",
+    };
+    if (!tabela || !cols.DB_COL_BARCODE || !cols.DB_COL_DESCRIPITION || !cols.DB_COL_PRICE1) {
+      box.hidden = true;
+      return;
+    }
+    if (avancar) _sqlAmostraOffset += 1;
+    else _sqlAmostraOffset = 0;
+    try {
+      const r = await json("/api/config/amostra-produto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.assign({
+          DB_URL: ($("c_DB_URL") && $("c_DB_URL").value) || "",
+          DB_PRODUCT_TABLE_NAME: tabela,
+          preset_id: presetAtivo || "",
+          offset: _sqlAmostraOffset,
+          excluir: avancar ? _sqlAmostraCodigo : "",
+        }, cols)),
+      });
+      box.hidden = false;
+      if (r && r.ok && r.produto) {
+        _sqlAmostraOffset = r.offset || 0;
+        _sqlAmostraCodigo = r.produto.codigo || "";
+      }
+      const desc = $("sql-amostra-desc");
+      const meta = $("sql-amostra-meta");
+      if (!r.ok || !r.produto) {
+        if (desc) desc.textContent = r.detail || "Sem produto de teste.";
+        if (meta) meta.textContent = "";
+        return;
+      }
+      const p = r.produto;
+      if (desc) desc.textContent = p.descricao || "—";
+      const bits = [];
+      if (p.codigo) bits.push("Código " + p.codigo);
+      if (p.codigo_adicional) bits.push("Extra " + p.codigo_adicional);
+      if (p.preco1) bits.push("Preço " + p.preco1);
+      if (p.preco2 && p.preco2 !== p.preco1) bits.push("Preço 2 " + p.preco2);
+      if (meta) meta.textContent = bits.join(" · ");
+    } catch (e) {
+      box.hidden = false;
+      if ($("sql-amostra-desc")) $("sql-amostra-desc").textContent = e.message;
+    }
+  }
+
+  if ($("btn-sql-amostra-reload")) {
+    $("btn-sql-amostra-reload").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      atualizarAmostraSql(true);
+    });
   }
 
   if ($("btn-mostrar-tabelas")) {
@@ -556,7 +883,7 @@
   if ($("sql-busca-coluna")) {
     $("sql-busca-coluna").addEventListener("input", () => {
       const f = ($("sql-busca-coluna").value || "").trim().toLowerCase();
-      ["sql-col-barcode", "sql-col-description", "sql-col-price1", "sql-col-price2"].forEach((id) => {
+      ["sql-col-barcode", "sql-col-barcode-alt", "sql-col-description", "sql-col-price1", "sql-col-price2"].forEach((id) => {
         const sel = $(id);
         if (!sel) return;
         Array.from(sel.options).forEach((opt, i) => {
@@ -573,6 +900,7 @@
       return;
     }
     const barcode = ($("sql-col-barcode") && $("sql-col-barcode").value) || "";
+    const barcodeAlt = ($("sql-col-barcode-alt") && $("sql-col-barcode-alt").value) || "";
     const desc = ($("sql-col-description") && $("sql-col-description").value) || "";
     const p1 = ($("sql-col-price1") && $("sql-col-price1").value) || "";
     const p2 = ($("sql-col-price2") && $("sql-col-price2").value) || "";
@@ -587,6 +915,7 @@
     if (typeof aplicarDependencias === "function") aplicarDependencias();
     if ($("c_DB_PRODUCT_TABLE_NAME")) $("c_DB_PRODUCT_TABLE_NAME").value = _sqlTabelaSel;
     if ($("c_DB_COL_BARCODE")) $("c_DB_COL_BARCODE").value = barcode;
+    if ($("c_DB_COL_BARCODE_ALT")) $("c_DB_COL_BARCODE_ALT").value = barcodeAlt;
     if ($("c_DB_COL_DESCRIPITION")) $("c_DB_COL_DESCRIPITION").value = desc;
     if ($("c_DB_COL_PRICE1")) $("c_DB_COL_PRICE1").value = p1;
     if ($("c_DB_COL_PRICE2")) $("c_DB_COL_PRICE2").value = p2;

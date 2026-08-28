@@ -2,6 +2,21 @@
 
 ---
 
+## [1.1.0] — 2026-08-25
+
+### Redesign do painel web
+
+- **Barra lateral moderna** no lugar do cabeçalho de abas (grupos Operação · Configuração · Extensões · Plugins ativos)
+- Barra recolhível (Ctrl+B), estado em `localStorage`; em telas ≤860px vira gaveta
+- **Tema escuro e claro** com tokens CSS (`--bg`, `--superficie`, `--texto`, `--acento`, …)
+- Fonte única Inter; classes legadas (`cartao`, `botao`, `interruptor`, `console`, …) mantidas
+- Página Plugins: atualizar versão existente é o padrão (checkbox oculto)
+- Compatibilidade: aliases `--fundo-2`, `--ink-2`, `--ink-3`, `--line` para plugins de exemplo
+- Scripts de casca: `ui.js` (tema/sidebar) + `comum.js` (`window.TC`)
+- Ajustes de altura nos plugins de cartaz/propagandas para o novo chrome
+
+---
+
 ## [1.0.0] — 2026-08-19
 
 Primeira linha estável pública do ArautoPY (evolução do antigo TCPY / tcserver-py).

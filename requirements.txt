@@ -16,10 +16,11 @@ sqlalchemy>=2.0
 # Firebird (DBware / SQLAlchemy 2.x) — URL firebird+firebird://...
 sqlalchemy-firebird>=2.1
 
-# Drivers opcionais — descomente conforme o banco:
-# psycopg2-binary        # PostgreSQL
-# pymysql                # MySQL / MariaDB
-# pyodbc                 # SQL Server
+# Drivers SQL da base EXTERNAL_SQL
+psycopg2-binary>=2.9     # PostgreSQL
+pymysql>=1.1             # MySQL / MariaDB
+pymssql>=2.2             # SQL Server
 # fdb                    # Firebird 2.5 legado (URL firebird+fdb://...)
+# pyodbc                 # SQL Server via ODBC (opcional)
 
 

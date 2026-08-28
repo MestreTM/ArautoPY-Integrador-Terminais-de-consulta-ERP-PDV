@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Query, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -27,12 +27,14 @@ from ..core.service import QueryService, carregar_mascara
 from ..core import product_image
 from ..core import runtime
 from ..core.settings import APP_DIR, APP_VERSION, get_settings, resource_root
+from ..core import auth as auth_mod
 from .. import plugins as plugins_mod
 from ..plugins.markdown_lite import para_html as markdown_para_html
 from ..data.repositories import (
     listar_colunas_sql,
     listar_tabelas_sql,
     testar_conexao_sql,
+    amostra_produto_sql,
 )
 
 log = logging.getLogger("arauto.viewer")
@@ -55,8 +57,12 @@ def create_viewer(service: QueryService) -> FastAPI:
                   docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-    def ui_context(pagina: str = "") -> dict:
-        return {
+    @app.middleware("http")
+    async def _gate_acesso(request: Request, call_next):
+        return await auth_mod.middleware_acesso(request, call_next)
+
+    def ui_context(pagina: str = "", request: Request | None = None) -> dict:
+        ctx = {
             "pagina": pagina,
             "versao": APP_VERSION,
             "loja": settings.store_name,
@@ -68,15 +74,174 @@ def create_viewer(service: QueryService) -> FastAPI:
                 {"id": a.id, "rotulo": a.rotulo, "href": a.href}
                 for a in plugins_mod.abas_ativas()
             ],
+            "usuario_painel": "",
+            "setup_completo": auth_mod.setup_completo(),
         }
+        if request is not None:
+            ctx["usuario_painel"] = auth_mod.usuario_request(request) or ""
+        return ctx
 
     @app.get("/", response_class=HTMLResponse, summary="Terminal de consulta")
     def kiosk(request: Request) -> HTMLResponse:
-        return TEMPLATES.TemplateResponse(request, "kiosk.html", ui_context("kiosk"))
+        return TEMPLATES.TemplateResponse(request, "kiosk.html", ui_context("kiosk", request))
 
     @app.get("/painel", response_class=HTMLResponse, summary="Painel do operador")
     def painel(request: Request) -> HTMLResponse:
-        return TEMPLATES.TemplateResponse(request, "painel.html", ui_context("painel"))
+        return TEMPLATES.TemplateResponse(request, "painel.html", ui_context("painel", request))
+
+    @app.get("/login", response_class=HTMLResponse)
+    def tela_login(request: Request):
+        if not auth_mod.setup_completo():
+            return RedirectResponse("/setup", status_code=303)
+        if auth_mod.usuario_request(request):
+            return RedirectResponse("/painel", status_code=303)
+        ctx = {"versao": APP_VERSION, "loja": settings.store_name, "erro": ""}
+        return TEMPLATES.TemplateResponse(request, "login.html", ctx)
+
+    @app.get("/logout")
+    def tela_logout():
+        resp = RedirectResponse("/login", status_code=303)
+        return auth_mod.limpar_cookie(resp)
+
+    @app.post("/api/auth/login")
+    async def api_login(request: Request) -> JSONResponse:
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        usuario = str(corpo.get("usuario") or "").strip()
+        senha = str(corpo.get("senha") or "")
+        nome = auth_mod.autenticar(usuario, senha)
+        if not nome:
+            return JSONResponse({"ok": False, "detail": "Usuário ou senha inválidos."}, status_code=401)
+        resp = JSONResponse({"ok": True, "usuario": nome})
+        return auth_mod.aplicar_cookie(resp, nome)
+
+    @app.post("/api/auth/logout")
+    def api_logout() -> JSONResponse:
+        return auth_mod.limpar_cookie(JSONResponse({"ok": True}))
+
+    @app.get("/api/auth/eu")
+    def api_eu(request: Request) -> dict:
+        u = auth_mod.usuario_request(request)
+        return {"ok": bool(u), "usuario": u or "", "setup": auth_mod.setup_completo()}
+
+    @app.post("/api/auth/conta")
+    async def api_conta(request: Request) -> JSONResponse:
+        if not auth_mod.usuario_request(request) and auth_mod.setup_completo():
+            return JSONResponse({"ok": False, "detail": "Faça login."}, status_code=401)
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        try:
+            auth_mod.gravar_conta(str(corpo.get("usuario") or ""), str(corpo.get("senha") or ""))
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "detail": str(exc)}, status_code=422)
+        resp = JSONResponse({"ok": True, "detail": "Conta atualizada.", "usuario": (corpo.get("usuario") or "").strip()})
+        return auth_mod.aplicar_cookie(resp, str(corpo.get("usuario") or "").strip())
+
+    @app.get("/setup", response_class=HTMLResponse)
+    def tela_setup(request: Request):
+        if auth_mod.setup_completo():
+            return RedirectResponse("/painel" if auth_mod.usuario_request(request) else "/login", status_code=303)
+        from ..core import autostart as _autostart
+        ctx = {
+            "versao": APP_VERSION,
+            "presets_base": configform.PRESETS_BASE,
+            "modos_base": configform.MODOS_BASE,
+            "autostart": _autostart.status(),
+        }
+        return TEMPLATES.TemplateResponse(request, "setup.html", ctx)
+
+    @app.get("/api/setup/estado")
+    def api_setup_estado() -> dict:
+        from ..core import autostart as _autostart
+        return {
+            "completo": auth_mod.setup_completo(),
+            "tem_conta": auth_mod.tem_conta(),
+            "versao": APP_VERSION,
+            "autostart": _autostart.status(),
+            "presets": configform.PRESETS_BASE,
+            "modos": [{"id": a, "rotulo": b} for a, b in configform.MODOS_BASE],
+        }
+
+    @app.post("/api/setup/conta")
+    async def api_setup_conta(request: Request) -> JSONResponse:
+        if auth_mod.setup_completo():
+            return JSONResponse({"ok": False, "detail": "Instalação já concluída."}, status_code=409)
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        loja = str(corpo.get("loja") or "").strip()
+        try:
+            auth_mod.gravar_conta(str(corpo.get("usuario") or ""), str(corpo.get("senha") or ""))
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "detail": str(exc)}, status_code=422)
+        if loja:
+            settings.set("STORE_NAME", loja)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/setup/base")
+    async def api_setup_base(request: Request) -> JSONResponse:
+        if auth_mod.setup_completo():
+            return JSONResponse({"ok": False, "detail": "Instalação já concluída."}, status_code=409)
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        modo = str(corpo.get("DB_MODE") or "INTERNAL").strip() or "INTERNAL"
+        permitidos = {m[0] for m in configform.MODOS_BASE}
+        if modo not in permitidos:
+            return JSONResponse({"ok": False, "detail": "Modo de base inválido."}, status_code=422)
+        mapa = {
+            "DB_MODE": modo,
+            "PATH_FILE_PRODUCT": str(corpo.get("PATH_FILE_PRODUCT") or ""),
+            "TXT_DB_RELOAD_INTERVAL_MIN": str(corpo.get("TXT_DB_RELOAD_INTERVAL_MIN") or "1"),
+            "DB_URL": str(corpo.get("DB_URL") or ""),
+            "DB_PRODUCT_TABLE_NAME": str(corpo.get("DB_PRODUCT_TABLE_NAME") or ""),
+            "DB_COL_BARCODE": str(corpo.get("DB_COL_BARCODE") or ""),
+            "DB_COL_BARCODE_ALT": str(corpo.get("DB_COL_BARCODE_ALT") or ""),
+            "DB_COL_DESCRIPITION": str(corpo.get("DB_COL_DESCRIPITION") or ""),
+            "DB_COL_PRICE1": str(corpo.get("DB_COL_PRICE1") or ""),
+            "DB_COL_PRICE2": str(corpo.get("DB_COL_PRICE2") or ""),
+            "DB_RELOAD_INTERVAL_MIN": str(corpo.get("DB_RELOAD_INTERVAL_MIN") or "1"),
+        }
+        if modo == "EXTERNAL_SQL" and not mapa["DB_URL"].strip():
+            return JSONResponse({"ok": False, "detail": "Informe a conexão com o banco."}, status_code=422)
+        if modo == "EXTERNAL_TXT" and not mapa["PATH_FILE_PRODUCT"].strip():
+            return JSONResponse({"ok": False, "detail": "Informe o caminho do arquivo de produtos."}, status_code=422)
+        if modo == "EXTERNAL_SQL":
+            if not mapa["DB_PRODUCT_TABLE_NAME"].strip() or not mapa["DB_COL_BARCODE"].strip() or not mapa["DB_COL_DESCRIPITION"].strip() or not mapa["DB_COL_PRICE1"].strip():
+                return JSONResponse({"ok": False, "detail": "Selecione tabela, código, descrição e preço."}, status_code=422)
+        for k, v in mapa.items():
+            settings.set(k, v)
+        r = runtime.aplicar_base_produtos()
+        return JSONResponse({"ok": True, "base": r})
+
+    @app.post("/api/setup/concluir")
+    async def api_setup_concluir(request: Request) -> JSONResponse:
+        if auth_mod.setup_completo():
+            return JSONResponse({"ok": False, "detail": "Instalação já concluída."}, status_code=409)
+        if not auth_mod.tem_conta():
+            return JSONResponse({"ok": False, "detail": "Defina usuário e senha antes."}, status_code=422)
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        from ..core import autostart as _autostart
+        if corpo.get("autostart") is True:
+            _autostart.habilitar()
+        elif corpo.get("autostart") is False:
+            _autostart.desabilitar()
+        loja = str(corpo.get("loja") or "").strip()
+        if loja:
+            settings.set("STORE_NAME", loja)
+        auth_mod.marcar_completo()
+        usuario = (settings.get("ADMIN_USER") or "").strip()
+        resp = JSONResponse({"ok": True, "redirect": "/painel"})
+        return auth_mod.aplicar_cookie(resp, usuario)
 
     # --------------------------------------------------------- endpoints ui
     @app.get("/consulta/{codigo}")
@@ -93,8 +258,38 @@ def create_viewer(service: QueryService) -> FastAPI:
         return service.querylog.stats(days=dias)
 
     @app.get("/api/consultas")
-    def consultas(limite: int = 40) -> list[dict]:
-        return service.querylog.recent(limit=limite)
+    def consultas(limite: int = 40, fonte: str = "") -> list[dict]:
+        """fonte = sistema | terminais | vazio (todas)."""
+        import re
+        itens = []
+        for row in service.querylog.recent(limit=max(limite, 80)):
+            d = dict(row)
+            canal = str(d.get("channel") or "")
+            orig = str(d.get("origin") or "").strip()
+            ip_like = bool(re.match(r"^\d{1,3}(?:\.\d{1,3}){3}", orig))
+            terminal = canal.startswith("terminal") or ip_like
+            if terminal:
+                rotulo = orig or "terminal"
+                tipo = "terminais"
+            else:
+                mapa = {
+                    "webviewer": "Painel",
+                    "previa": "Prévia do layout",
+                    "api": "API",
+                    "api-lote": "API (lote)",
+                    "legado": "URL legada",
+                    "kiosk": "Kiosk",
+                }
+                rotulo = orig if (orig and orig not in ("previa",)) else mapa.get(canal, canal or "sistema")
+                tipo = "sistema"
+            d["origem"] = rotulo
+            d["fonte"] = tipo
+            if fonte in ("sistema", "terminais") and tipo != fonte:
+                continue
+            itens.append(d)
+            if len(itens) >= limite:
+                break
+        return itens
 
     @app.get("/api/produtos")
     def produtos(q: str = "", limite: int = 40) -> dict:
@@ -104,7 +299,7 @@ def create_viewer(service: QueryService) -> FastAPI:
     # ------------------------------------------------------------ configuração
     @app.get("/config", response_class=HTMLResponse, summary="Tela de configuração")
     def tela_config(request: Request) -> HTMLResponse:
-        contexto = ui_context("config")
+        contexto = ui_context("config", request)
         from ..core import autostart as _autostart
         contexto["autostart"] = _autostart.status()
         contexto["grupos"] = configform.com_valores(settings)
@@ -113,7 +308,9 @@ def create_viewer(service: QueryService) -> FastAPI:
         contexto["marcadores"] = scalelabel.DESCRICAO_MARCADORES
         contexto["prontas"] = configform.MASCARAS_PRONTAS
         contexto["balanca_ativa"] = settings.get_bool("SCALE_ENABLED", True)
+        from ..core import product_image as _pimg
         contexto["product_image_pack_url"] = settings.get("PRODUCT_IMAGE_PACK_URL") or ""
+        contexto["product_image_pack_url_padrao"] = _pimg.PACOTE_URL_PADRAO
         contexto["presets_base"] = configform.PRESETS_BASE
         return TEMPLATES.TemplateResponse(request, "config.html", contexto)
 
@@ -246,7 +443,7 @@ def create_viewer(service: QueryService) -> FastAPI:
     @app.get("/diagnostico", response_class=HTMLResponse, summary="Logs e monitor")
     def tela_diagnostico(request: Request) -> HTMLResponse:
         return TEMPLATES.TemplateResponse(
-            request, "diagnostico.html", ui_context("diagnostico")
+            request, "diagnostico.html", ui_context("diagnostico", request)
         )
 
     @app.get("/logs", response_class=HTMLResponse, summary="Atalho: diagnóstico → logs")
@@ -290,7 +487,7 @@ def create_viewer(service: QueryService) -> FastAPI:
     # ------------------------------------------------------------------ layout
     @app.get("/layout", response_class=HTMLResponse, summary="Editor de layout")
     def tela_layout(request: Request) -> HTMLResponse:
-        contexto = ui_context("layout")
+        contexto = ui_context("layout", request)
         contexto["elementos"] = layout_mod.ELEMENTOS
         return TEMPLATES.TemplateResponse(request, "layout.html", contexto)
 
@@ -309,7 +506,9 @@ def create_viewer(service: QueryService) -> FastAPI:
         return {
             "modelos": itens,
             "elementos": [{"chave": c, "rotulo": r} for c, r in layout_mod.ELEMENTOS],
-            "cores": [{"nome": n, "codigo": c} for n, c in layout_mod.CORES.items()],
+            "cores": [{"nome": n, "codigo": c, "hex": layout_mod.hex_cor(c)}
+                      for n, c in layout_mod.CORES.items()],
+            "fontes": list(layout_mod.FONTES_APARELHO),
             "cor_sem_fundo": layout_mod.COR_SEM_FUNDO,
             # o editor usa exatamente a mesma conta de quebra que o servidor
             "fator_caractere": layout_mod.FATOR_LARGURA_CARACTERE,
@@ -344,9 +543,9 @@ def create_viewer(service: QueryService) -> FastAPI:
                 "codigo": resultado.barcode,
                 "descricao": resultado.description,
                 "rotulo1": resultado.label1 if resultado.price1 else "",
-                "preco1": resultado.preco1 if hasattr(resultado, "preco1") else resultado.price1,
+                "preco1": resultado.price1 or "",
                 "rotulo2": resultado.label2 if resultado.price2 else "",
-                "preco2": resultado.price2,
+                "preco2": resultado.price2 or "",
                 "nao_achado": resultado.label_not_found,
             },
         }
@@ -354,7 +553,7 @@ def create_viewer(service: QueryService) -> FastAPI:
     # ----------------------------------------------------------------- monitor
     @app.get("/monitor", response_class=HTMLResponse, summary="Tráfego cru dos terminais")
     def tela_monitor(request: Request) -> HTMLResponse:
-        return TEMPLATES.TemplateResponse(request, "monitor.html", ui_context("monitor"))
+        return TEMPLATES.TemplateResponse(request, "monitor.html", ui_context("monitor", request))
 
     @app.get("/api/monitor")
     def ler_monitor(desde: int = Query(0, ge=0), protocolo: str = Query(""),
@@ -423,6 +622,18 @@ def create_viewer(service: QueryService) -> FastAPI:
     def api_imagens_status() -> dict:
         return product_image.status_pacote()
 
+    @app.get("/api/imagens/{codigo}")
+    def api_imagem_produto(codigo: str):
+        """Serve a imagem local do produto ({ean13}.jpg), se existir."""
+        caminho = product_image.caminho_imagem_local(codigo)
+        if not caminho or not caminho.is_file():
+            return JSONResponse({"detail": "Imagem não encontrada"}, status_code=404)
+        return FileResponse(
+            caminho,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
     @app.post("/api/imagens/baixar-pacote")
     def api_imagens_baixar() -> dict:
         """Baixa o ZIP do GitHub: sobrescreve só {ean}.jpg presentes no pacote."""
@@ -447,30 +658,78 @@ def create_viewer(service: QueryService) -> FastAPI:
         return JSONResponse(r, status_code=200 if r.get("ok") else 404)
 
 
+    @app.get("/api/config/dialectos")
+    def api_dialectos_sql() -> dict:
+        """Dialetos SQLAlchemy cujas bibliotecas estão instaladas neste processo."""
+        itens = []
+
+        def probe(*mods: str) -> bool:
+            for mod in mods:
+                try:
+                    __import__(mod)
+                    return True
+                except Exception:
+                    continue
+            return False
+
+        def add(ident, rotulo, scheme, porta, arquivo, usuario="", senha="", instalado=True):
+            itens.append({
+                "id": ident,
+                "rotulo": rotulo,
+                "scheme": scheme,
+                "porta": porta,
+                "arquivo": arquivo,
+                "usuario_padrao": usuario,
+                "senha_padrao": senha,
+                "instalado": bool(instalado),
+            })
+
+        add("sqlite", "SQLite (arquivo)", "sqlite", None, True, "", "", True)
+        add("firebird", "Firebird 3+", "firebird+firebird", 3050, True, "SYSDBA", "masterkey",
+            probe("firebird.driver", "sqlalchemy_firebird", "firebird.sqlalchemy"))
+        add("firebird_fdb", "Firebird 2.5 (fdb)", "firebird+fdb", 3050, True,
+            "SYSDBA", "masterkey", probe("fdb"))
+        pg_ok = probe("psycopg2") or probe("psycopg")
+        add("postgres", "PostgreSQL",
+            "postgresql+psycopg2" if probe("psycopg2") else "postgresql+psycopg",
+            5432, False, "postgres", "", pg_ok)
+        add("mysql", "MySQL / MariaDB", "mysql+pymysql", 3306, False, "root", "", probe("pymysql"))
+        if probe("pymssql"):
+            add("mssql", "SQL Server", "mssql+pymssql", 1433, False, "sa", "", True)
+        elif probe("pyodbc"):
+            add("mssql", "SQL Server (ODBC)", "mssql+pyodbc", 1433, False, "sa", "", True)
+        else:
+            add("mssql", "SQL Server", "mssql+pymssql", 1433, False, "sa", "", False)
+        return {"itens": itens}
+
     @app.post("/api/config/testar-sql")
     def api_testar_sql(corpo: dict = Body(default={})) -> JSONResponse:
         """Testa URL/tabela/colunas sem gravar a configuração."""
         url = str(corpo.get("DB_URL") or corpo.get("url") or "").strip()
-        table = str(corpo.get("DB_PRODUCT_TABLE_NAME") or corpo.get("table") or "").strip()
+        table = str(
+            corpo.get("DB_PRODUCT_TABLE_NAME")
+            or corpo.get("table")
+            or ""
+        ).strip()
         cols = {
             "barcode": str(corpo.get("DB_COL_BARCODE") or "").strip(),
             "description": str(corpo.get("DB_COL_DESCRIPITION") or "").strip(),
             "price1": str(corpo.get("DB_COL_PRICE1") or "").strip(),
             "price2": str(corpo.get("DB_COL_PRICE2") or "").strip(),
+            "barcode_alt": str(corpo.get("DB_COL_BARCODE_ALT") or "").strip(),
         }
-        # Se o cliente não mandou campos, usa o que está salvo
-        if not url:
-            url = settings.get("DB_URL") or ""
-        if not table:
-            table = settings.get("DB_PRODUCT_TABLE_NAME") or ""
-        if not cols["barcode"]:
-            cols = {
-                "barcode": settings.get("DB_COL_BARCODE") or "",
-                "description": settings.get("DB_COL_DESCRIPITION") or "",
-                "price1": settings.get("DB_COL_PRICE1") or "",
-                "price2": settings.get("DB_COL_PRICE2") or "",
-            }
+        table, cols = configform.completar_mapeamento_sql(
+            url, table, cols, preset_id=str(corpo.get("preset_id") or ""),
+        )
         resultado = testar_conexao_sql(url, table=table, cols=cols)
+        if resultado.get("ok") and table:
+            resultado["tabela"] = table
+            resultado["colunas"] = cols
+            if "CAD_PRODUTOS" in table.upper() and "preset" not in (resultado.get("detail") or "").lower():
+                resultado["detail"] = (
+                    (resultado.get("detail") or "Conexão ok.")
+                    + f" Mapeamento DBware: {table}."
+                )
         # Sempre 200: o front lê resultado.ok (evita throw do helper json)
         return JSONResponse(resultado)
 
@@ -485,6 +744,29 @@ def create_viewer(service: QueryService) -> FastAPI:
         url = str(corpo.get("DB_URL") or corpo.get("url") or settings.get("DB_URL") or "").strip()
         table = str(corpo.get("tabela") or corpo.get("table") or "").strip()
         return JSONResponse(listar_colunas_sql(url, table))
+
+    @app.post("/api/config/amostra-produto")
+    def api_amostra_produto(corpo: dict = Body(default={})) -> JSONResponse:
+        url = str(corpo.get("DB_URL") or corpo.get("url") or settings.get("DB_URL") or "").strip()
+        table = str(
+            corpo.get("DB_PRODUCT_TABLE_NAME") or corpo.get("tabela") or corpo.get("table") or ""
+        ).strip()
+        cols = {
+            "barcode": str(corpo.get("DB_COL_BARCODE") or corpo.get("barcode") or "").strip(),
+            "barcode_alt": str(corpo.get("DB_COL_BARCODE_ALT") or corpo.get("barcode_alt") or "").strip(),
+            "description": str(corpo.get("DB_COL_DESCRIPITION") or corpo.get("description") or "").strip(),
+            "price1": str(corpo.get("DB_COL_PRICE1") or corpo.get("price1") or "").strip(),
+            "price2": str(corpo.get("DB_COL_PRICE2") or corpo.get("price2") or "").strip(),
+        }
+        table, cols = configform.completar_mapeamento_sql(
+            url, table, cols, preset_id=str(corpo.get("preset_id") or ""),
+        )
+        try:
+            offset = int(corpo.get("offset") or 0)
+        except (TypeError, ValueError):
+            offset = 0
+        excluir = str(corpo.get("excluir") or corpo.get("codigo") or "")
+        return JSONResponse(amostra_produto_sql(url, table, cols, offset=offset, excluir=excluir))
 
 
     # -------------------------------------------------------------- plugins
@@ -539,7 +821,7 @@ def create_viewer(service: QueryService) -> FastAPI:
 
     @app.get("/plugins", response_class=HTMLResponse, summary="Gerenciador de plugins")
     def tela_plugins(request: Request) -> HTMLResponse:
-        ctx = ui_context("plugins")
+        ctx = ui_context("plugins", request)
         ctx["pasta"] = str(plugins_mod.pasta_plugins())
         return TEMPLATES.TemplateResponse(request, "plugins.html", ctx)
 
@@ -551,9 +833,67 @@ def create_viewer(service: QueryService) -> FastAPI:
             md = path.read_text(encoding="utf-8", errors="replace")
         else:
             md = "# Documentação não encontrada\n\nArquivo esperado: `docs/plugins.md`."
-        ctx = ui_context("plugins")
+        ctx = ui_context("plugins", request)
         ctx["html"] = markdown_para_html(md)
         return TEMPLATES.TemplateResponse(request, "plugins_docs.html", ctx)
+
+    @app.get("/api/plugins/catalogo")
+    def api_plugins_catalogo() -> dict:
+        from ..core import plugin_store
+        return plugin_store.catalogo_mesclado()
+
+    @app.get("/api/plugins/catalogo/refresh")
+    def api_plugins_catalogo_refresh() -> dict:
+        from ..core import plugin_store
+        return plugin_store.catalogo_mesclado(forcar_refresh=True)
+
+    @app.get("/api/plugins/{plugin_id}/estado")
+    def api_plugin_estado(plugin_id: str) -> dict:
+        from ..core import plugin_store
+        return plugin_store.ler_estado(plugin_id)
+
+    @app.post("/api/plugins/{plugin_id}/instalar")
+    @app.post("/api/plugins/{plugin_id}/instalar-online")
+    async def api_plugin_instalar_online(plugin_id: str, request: Request) -> JSONResponse:
+        from ..core import plugin_store
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        r = plugin_store.instalar_ou_atualizar(
+            plugin_id,
+            confirmar=bool(corpo.get("confirmar")),
+            confirmar_modificado=bool(corpo.get("confirmar_modificado")),
+            confirmar_checksum=bool(corpo.get("confirmar_checksum")),
+            atualizar=False,
+        )
+        if r.get("ok") and r.get("id"):
+            rr = plugins_mod.recarregar_plugin(str(r["id"]))
+            if not rr.get("ok"):
+                rr = plugins_mod.recarregar_plugins()
+            r["reload"] = rr
+        return JSONResponse(r, status_code=200 if r.get("ok") else 400)
+
+    @app.post("/api/plugins/{plugin_id}/atualizar")
+    async def api_plugin_atualizar_online(plugin_id: str, request: Request) -> JSONResponse:
+        from ..core import plugin_store
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        r = plugin_store.instalar_ou_atualizar(
+            plugin_id,
+            confirmar=bool(corpo.get("confirmar")),
+            confirmar_modificado=bool(corpo.get("confirmar_modificado")),
+            confirmar_checksum=bool(corpo.get("confirmar_checksum")),
+            atualizar=True,
+        )
+        if r.get("ok") and r.get("id"):
+            rr = plugins_mod.recarregar_plugin(str(r["id"]))
+            if not rr.get("ok"):
+                rr = plugins_mod.recarregar_plugins()
+            r["reload"] = rr
+        return JSONResponse(r, status_code=200 if r.get("ok") else 400)
 
     @app.get("/api/plugins")
     def api_plugins() -> dict:

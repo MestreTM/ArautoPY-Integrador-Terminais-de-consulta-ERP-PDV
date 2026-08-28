@@ -330,7 +330,12 @@ def rodar(porta: int, destino: str, host: str = "0.0.0.0",
 
     escuta = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     escuta.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    escuta.bind((host, porta))
+    try:
+        escuta.bind((host, porta))
+    except OSError as exc:
+        from arauto.core.netutil import mensagem_falha_porta
+        diga(mensagem_falha_porta("proxy/sniffer", porta, exc, host=host))
+        raise SystemExit(1) from exc
     escuta.listen(8)
     # Timeout curto em vez de accept() bloqueante: no Windows o Ctrl+C não
     # interrompe uma chamada de socket bloqueada, e o processo ficava preso.

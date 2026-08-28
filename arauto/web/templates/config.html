@@ -8,6 +8,10 @@
   <aside class="config-nav" aria-label="Seções de configuração">
     <p class="config-nav-titulo">Seções</p>
     <nav class="config-nav-lista" id="config-nav">
+      <button type="button" class="config-nav-item" data-secao="secao-conta" title="Acesso ao painel">
+        <span class="config-nav-num">00</span>
+        <span class="config-nav-label">Acesso ao painel</span>
+      </button>
       {% for grupo in grupos %}{% if grupo.campos | rejectattr("oculto") | list %}
       <button type="button" class="config-nav-item{% if loop.first %} config-nav-item--ativo{% endif %}"
               data-secao="secao-{{ loop.index0 }}" title="{{ grupo.titulo }}">
@@ -80,14 +84,18 @@
             <input type="number" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
                    value="{{ campo.valor }}" min="{{ campo.minimo }}" max="{{ campo.maximo }}">
           {% elif campo.chave == "DB_URL" %}
-            <div class="campo-com-acao">
-              <input type="text" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
-                     value="{{ campo.valor }}" placeholder="{{ campo.exemplo }}"
-                     class="mono">
-              <button type="button" class="botao botao--claro" id="btn-testar-sql"
-                      title="Testa a conexão com os valores atuais do formulário">Testar</button>
-              <button type="button" class="botao" id="btn-mostrar-tabelas"
-                      title="Lista tabelas e ajuda a mapear colunas">Mostrar tabelas</button>
+            <input type="hidden" id="c_{{ campo.chave }}" name="{{ campo.chave }}"
+                   value="{{ campo.valor }}">
+            <div class="db-url-resumo">
+              <p class="db-url-estado" id="db-url-estado">{% if campo.valor %}Conexão configurada{% else %}Nenhuma conexão configurada{% endif %}</p>
+              <p class="ajuda" id="db-url-mascara">A URL fica no modal. Use Configurar para montar ou colar.</p>
+              <div class="campo-com-acao">
+                <button type="button" class="botao botao--claro" id="btn-montar-url">Configurar</button>
+                <button type="button" class="botao" id="btn-testar-sql"
+                        title="Testa a conexão com os valores atuais do formulário">Testar</button>
+                <button type="button" class="botao botao--fantasma" id="btn-mostrar-tabelas"
+                        title="Lista tabelas e ajuda a mapear colunas">Mostrar tabelas</button>
+              </div>
             </div>
             <p class="meta-img" id="testar-sql-resultado" hidden></p>
           {% else %}
@@ -132,8 +140,9 @@
           <div class="campo">
             <label for="c_PRODUCT_IMAGE_PACK_URL">URL do pacote de imagens (ZIP / GitHub)</label>
             <input type="text" id="c_PRODUCT_IMAGE_PACK_URL" name="PRODUCT_IMAGE_PACK_URL" class="mono"
-                   value="{{ product_image_pack_url }}">
-            <p class="ajuda">URL do ZIP do pacote de imagens.</p>
+                   value="{{ product_image_pack_url }}"
+                   placeholder="{{ product_image_pack_url_padrao }}">
+            <p class="ajuda">Deixe vazio para usar o pacote oficial (placeholder). URL direta de um ZIP também vale.</p>
             <p class="chave-tecnica mono">PRODUCT_IMAGE_PACK_URL</p>
           </div>
         </div>
@@ -145,6 +154,10 @@
           </p>
           <p class="meta-img" id="img-detalhe">—</p>
           <p class="meta-img mono" id="img-pasta">—</p>
+          <div class="img-progresso" id="img-progresso" hidden>
+            <div class="img-progresso-barra"><i id="img-progresso-fill"></i></div>
+            <p class="meta-img" id="img-progresso-txt">0%</p>
+          </div>
 
           <div class="img-acoes" style="margin-top:.9rem;display:flex;flex-direction:column;gap:.65rem">
             <div style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -166,6 +179,30 @@
       {% endif %}
     </section>
     {% endif %}{% endfor %}
+
+    <section class="cartao config-secao" id="secao-conta" data-secao>
+      <header class="config-secao-cab">
+        <h2>Acesso ao painel</h2>
+        <p class="dica">Usuário e senha do cookie de login. O terminal de consulta na loja não pede senha.</p>
+      </header>
+      <div class="campos">
+        <div class="campo">
+          <label for="conta-usuario">Usuário</label>
+          <input type="text" id="conta-usuario" value="{{ usuario_painel }}" autocomplete="username">
+        </div>
+        <div class="campo">
+          <label for="conta-senha">Nova senha</label>
+          <input type="password" id="conta-senha" autocomplete="new-password" minlength="6">
+        </div>
+        <div class="campo">
+          <label for="conta-senha2">Confirmar senha</label>
+          <input type="password" id="conta-senha2" autocomplete="new-password" minlength="6">
+        </div>
+      </div>
+      <div class="barra-acoes">
+        <button type="button" class="botao botao--claro" id="btn-conta">Salvar usuário e senha</button>
+      </div>
+    </section>
 
     {% if autostart and autostart.disponivel %}
     <section class="cartao config-secao" id="secao-autostart" data-secao>
@@ -321,6 +358,10 @@
           <select id="sql-col-barcode"><option value="">—</option></select>
         </div>
         <div class="sql-mapa">
+          <span>Código adicional (opcional)</span>
+          <select id="sql-col-barcode-alt"><option value="">—</option></select>
+        </div>
+        <div class="sql-mapa">
           <span>Descrição</span>
           <select id="sql-col-description"><option value="">—</option></select>
         </div>
@@ -334,6 +375,14 @@
         </div>
       </div>
       <p class="meta-img" id="sql-cols-status">—</p>
+      <article class="produto-amostra" id="sql-amostra" hidden>
+        <header class="produto-amostra-cab">
+          <p class="produto-amostra-rotulo">Produto de teste</p>
+          <button type="button" class="botao botao--fantasma botao--mini" id="btn-sql-amostra-reload" title="Mostrar outro produto">Reload</button>
+        </header>
+        <p class="produto-amostra-desc" id="sql-amostra-desc">—</p>
+        <p class="produto-amostra-meta" id="sql-amostra-meta"></p>
+      </article>
     </div>
 
     <footer class="modal-sql-rodape">
@@ -342,6 +391,57 @@
     </footer>
   </div>
 </div>
+<!-- Helper: montar URL SQL por campos -->
+<div class="modal-sql" id="modal-url" hidden>
+  <div class="modal-sql-fundo" id="modal-url-fundo"></div>
+  <div class="modal-sql-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-url-titulo">
+    <header class="modal-sql-cab">
+      <h3 id="modal-url-titulo">Montar URL de conexão</h3>
+      <button type="button" class="toast-download-x" id="modal-url-fechar" title="Fechar">×</button>
+    </header>
+    <p class="dica">Firebird, PostgreSQL, MySQL/MariaDB, SQL Server e SQLite. A URL é montada ao aplicar.</p>
+    <div class="campos" id="url-campos-simples">
+      <div class="campo campo--cresce">
+        <label for="url-dialecto">Tipo de banco</label>
+        <select id="url-dialecto"></select>
+      </div>
+      <div class="campo" id="url-campo-host">
+        <label for="url-host">Servidor</label>
+        <input type="text" id="url-host" value="localhost">
+      </div>
+      <div class="campo campo--curto" id="url-campo-porta">
+        <label for="url-porta">Porta</label>
+        <input type="number" id="url-porta">
+      </div>
+      <div class="campo" id="url-campo-user">
+        <label for="url-user">Usuário</label>
+        <input type="text" id="url-user">
+      </div>
+      <div class="campo" id="url-campo-pass">
+        <label for="url-pass">Senha</label>
+        <input type="password" id="url-pass" autocomplete="new-password">
+      </div>
+      <div class="campo campo--cresce" id="url-campo-db">
+        <label for="url-db" id="url-db-label">Banco / arquivo</label>
+        <input type="text" id="url-db" class="mono" placeholder="C:/DBVenda/DB/dbvenda.fdb">
+      </div>
+    </div>
+    <p class="ajuda mono" id="url-builder-preview">—</p>
+    <label class="interruptor-linha" style="margin-top:.35rem">
+      <input type="checkbox" id="url-avancado">
+      <span class="trilho"></span><span>Avançado — digitar a URL</span>
+    </label>
+    <div class="campo" id="url-campo-avancado" hidden>
+      <label for="url-bruta">URL de conexão</label>
+      <input type="text" id="url-bruta" class="mono" placeholder="postgresql+psycopg2://user:senha@host:5432/loja">
+    </div>
+    <footer class="modal-sql-rodape">
+      <button type="button" class="botao botao--fantasma" id="modal-url-cancelar">Cancelar</button>
+      <button type="button" class="botao botao--claro" id="modal-url-aplicar">Aplicar na URL</button>
+    </footer>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -350,5 +450,3 @@ window.ARAUTO_PRESETS_BASE = {{ presets_base | tojson }};
 </script>
 <script src="/static/js/config.js"></script>
 {% endblock %}
-
-

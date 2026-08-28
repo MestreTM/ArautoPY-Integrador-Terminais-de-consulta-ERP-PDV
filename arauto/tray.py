@@ -84,10 +84,22 @@ def run_tray(
 
     alvo = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
     base = f"http://{alvo}:{porta_web}"
+    atalho_painel = base + "/painel"
+    try:
+        from arauto.core import localurl as _localurl
+        from arauto.core.settings import get_settings
+        s = get_settings()
+        nome = _localurl.hostname_efetivo(s.get("LOCAL_HOSTNAME"))
+        atalho_painel = _localurl.url_painel(nome, porta_web)
+    except Exception:
+        pass
 
     def abrir(path: str = "/") -> None:
         try:
-            webbrowser.open(base + path)
+            if path == "/painel":
+                webbrowser.open(atalho_painel)
+            else:
+                webbrowser.open(base + path)
         except Exception:
             log.exception("Não foi possível abrir o navegador")
 

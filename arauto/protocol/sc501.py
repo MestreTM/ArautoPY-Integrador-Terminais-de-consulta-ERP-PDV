@@ -303,7 +303,7 @@ class Sc501Connection(threading.Thread):
             return
         self.terminal.queries += 1
         self.terminal.last_barcode = code
-        result = self.service.query(code, origin=self.address[0], channel="terminal")
+        result = self.service.query(code, origin=self.peer, channel="terminal")
         if not result.found:
             self.send(CMD_NOT_FOUND)
             return
@@ -347,14 +347,8 @@ class Sc501Server(threading.Thread):
         try:
             self._sock.bind((self.host, self.port))
         except OSError as exc:
-            log.error("Não foi possível abrir a porta SC501 %s: %s", self.port, exc)
-            if getattr(exc, "winerror", None) == 10013:
-                log.error(
-                    "No Windows esse erro costuma ser porta reservada pelo "
-                    "sistema (Hyper-V/WSL), não firewall. Confira com: "
-                    "netsh interface ipv4 show excludedportrange protocol=tcp — "
-                    "e escolha uma porta fora das faixas listadas."
-                )
+            from arauto.core.netutil import log_falha_porta
+            log_falha_porta(log, "SC501", self.port, exc, host=self.host)
             return
         self._sock.listen(64)
         log.info("Servidor SC501 escutando em %s:%s%s", self.host, self.port,

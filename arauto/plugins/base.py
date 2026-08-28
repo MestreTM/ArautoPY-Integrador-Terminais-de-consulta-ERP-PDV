@@ -126,6 +126,13 @@ class PluginContext:
         self._hooks_query.append(fn)
         return fn
 
+    def mapeamento_colunas(self) -> dict:
+        """Colunas da base de produtos (inclui ``barcode_alt`` se configurada)."""
+        fn = getattr(self.service, "mapeamento_colunas", None)
+        if callable(fn):
+            return fn()
+        return {}
+
     def registrar_tcp(
         self,
         host: str,

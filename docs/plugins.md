@@ -118,14 +118,22 @@ class Plugin(Plugin):
 | `ctx.plugin_id` | Identificador da pasta do plugin |
 | `ctx.adicionar_aba(id, rotulo, href, ordem=100)` | Nova aba no cabeçalho |
 | `ctx.ao_consultar(fn)` | Callback após cada consulta de preço |
+| `ctx.mapeamento_colunas()` | Colunas SQL: `barcode`, `barcode_alt`, descrição, preços, tabela |
+| `ctx.service.repo` | Repositório de produtos (`get`, `search`, `count`) |
 
 ### Consultar produto
 
 ```python
-r = ctx.service.query("7891000100103", origin="plugin", channel="meu_plugin")
+r = ctx.service.query("001100", origin="plugin", channel="meu_plugin")
 if r.found:
     print(r.description, r.price1)
+    # PLU de balança (quando CODIGO_BARRA está vazio e DB_COL_BARCODE_ALT=REFERENCIA):
+    print(getattr(r, "extra", {}) or {})
+    # r.extra["codigo_adicional"], r.extra["origem_codigo"]
 ```
+
+`origem_codigo` vale `"barcode"` ou `"adicional"`. `codigo_adicional` é o valor
+da coluna extra (ex.: `REFERENCIA` no DBware).
 
 ### Listar produtos
 

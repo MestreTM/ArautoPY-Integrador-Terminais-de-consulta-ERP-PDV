@@ -248,7 +248,12 @@ def rodar(porta: int, host: str = "0.0.0.0", destino_dir: Path | None = None,
 
     servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    servidor.bind((host, porta))
+    try:
+        servidor.bind((host, porta))
+    except OSError as exc:
+        from arauto.core.netutil import mensagem_falha_porta
+        print(mensagem_falha_porta("sniffer", porta, exc, host=host), flush=True)
+        raise SystemExit(1) from exc
     servidor.listen(8)
     servidor.settimeout(0.5)   # ver comentário em proxy.rodar sobre Ctrl+C
 

@@ -1,0 +1,44 @@
+# Uso:
+#   docker compose up -d
+# Painel: http://localhost:6689/painel
+#
+# Dados persistentes ficam no volume "arauto-data" (/data no container),
+# equivalente ao ~/.arauto da instalação local.
+
+name: arautopy
+
+services:
+  arauto:
+    image: ghcr.io/mestretm/arautopy:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arauto
+    restart: unless-stopped
+    environment:
+      ARAUTO_HOME: /data
+      ARAUTO_DOCKER: "1"
+    volumes:
+      - arauto-data:/data
+    ports:
+      - "6689:6689"     # painel / consulta / setup
+      - "5589:5589"     # API
+      - "6500:6500"     # SC501 (TCP)
+      - "16510:16510"   # SC504 (TCP)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6689/', timeout=3).read(1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  arauto-data:

@@ -147,6 +147,9 @@ ID_V_UPDATE_MEDIAS = 117
 R_ID_V_UPDATE_MEDIAS = 118
 ID_V_DELETE_FILE = 184
 R_ID_V_DELETE_FILE = 185
+# Limpa toda a mídia da memória interna (captura TC Server: 0xBA → 0xBB)
+ID_V_DELETE_ALL_MEDIAS = 186
+R_ID_V_DELETE_ALL_MEDIAS = 187
 
 R_ID_V_LIVE = 18
 ID_W_GET_IDENTIFY = 19
@@ -189,6 +192,7 @@ NOMES = {
     117: "ID_V_UPDATE_MEDIAS", 118: "R_ID_V_UPDATE_MEDIAS",
     121: "ID_RESTART", 129: "ID_V_SHOW_FRAME", 166: "ID_SHOW_LOCAL_MEDIA",
     184: "ID_V_DELETE_FILE", 185: "R_ID_V_DELETE_FILE",
+    186: "ID_V_DELETE_ALL_MEDIAS", 187: "R_ID_V_DELETE_ALL_MEDIAS",
     168: "ID_SET_SENSOR", 170: "ID_GET_SENSOR_STATUS", 172: "ID_SET_AUDIO",
     176: "ID_SET_VOLUME", 180: "ID_SET_BRIGHTNESS", 208: "ID_V_PLAY_AUDIO",
     214: "ID_QUERY_PROCESS_FAILURE", 216: "ID_GET_VERSION",
@@ -375,9 +379,9 @@ def montar_payload_imagem(
         768 bytes de paleta RGB (256 cores × 3) + 480×272 bytes de índices.
 
     `caixa` = (x, y, largura, altura) da região onde a foto deve aparecer.
-    O restante da tela fica preenchido com `fundo` (padrão: branco), para o
-    texto do layout continuar legível em cima. Sem caixa, a foto ocupa a tela
-    inteira (comportamento antigo, com letterbox).
+    O restante da tela fica preenchido com `fundo` (a cor da tela do layout),
+    para o IDvShowImg não pintar o fundo de branco por cima do DispClear.
+    Sem caixa, a foto ocupa a tela inteira (letterbox na mesma cor).
     """
     try:
         from PIL import Image
@@ -390,7 +394,12 @@ def montar_payload_imagem(
 
     try:
         img = Image.open(io.BytesIO(dados))
-        img = img.convert("RGB")
+        # PNG com alpha: fundo branco (não preto do convert RGB cru)
+        try:
+            from arauto.core.product_image import imagem_rgb_fundo
+            img = imagem_rgb_fundo(img, fundo if isinstance(fundo, tuple) else (255, 255, 255))
+        except Exception:
+            img = img.convert("RGB")
 
         canvas = Image.new("RGB", (IMG_LARGURA, IMG_ALTURA), fundo)
 
@@ -441,8 +450,16 @@ def _caixa_imagem_do_layout(modelo: int | None) -> tuple[int, int, int, int] | N
 
 def obter_payload_imagem(codigo: str, modelo: int | None = None) -> bytes | None:
     """Local/cache → fallback HTTP → conversão IDvShowImg."""
+    from ..core.layout import rgb_cor
+
+    layout = get_layouts().obter(modelo)
+    el_img = layout.elementos.get("imagem")
+    if el_img is None or not el_img.visivel:
+        return None
+
     caixa = _caixa_imagem_do_layout(modelo)
-    chave_cache = f"{codigo}|{caixa}"
+    fundo = rgb_cor(layout.cor_tela, (255, 255, 255))
+    chave_cache = f"{codigo}|{caixa}|{layout.cor_tela}"
 
     with _CACHE_LOCK:
         if chave_cache in _CACHE_IMAGENS:
@@ -464,7 +481,7 @@ def obter_payload_imagem(codigo: str, modelo: int | None = None) -> bytes | None
         bruto = _baixar_bytes(url)
     if not bruto:
         return None
-    payload = montar_payload_imagem(bruto, caixa=caixa, fundo=(255, 255, 255))
+    payload = montar_payload_imagem(bruto, caixa=caixa, fundo=fundo)
     if payload is None:
         return None
 
@@ -703,6 +720,40 @@ class Sc504Connection(threading.Thread):
         ack = self._esperar_resposta(R_ID_V_DELETE_FILE, timeout=timeout)
         return ack is not None
 
+    def limpar_memoria_midias(self, timeout: float = 30.0) -> bool:
+        """Apaga toda a mídia da memória interna (ID 186) e zera as playlists.
+
+        Sequência observada no TC Server / captura real:
+        1. ID_V_DELETE_ALL_MEDIAS (186)
+        2. ID_V_UPDATE_MEDIAS (117)
+        3. medias.conf e presence_sensor.conf vazios (``<\\n>``)
+        4. all_medias.conf só com ``[INT_MEM]``
+        5. ID_V_UPDATE_MEDIAS de novo
+        """
+        from . import sc504_media as media
+
+        self.enviar(ID_V_DELETE_ALL_MEDIAS)
+        ack = self._esperar_resposta(R_ID_V_DELETE_ALL_MEDIAS, timeout=timeout)
+        if ack is None:
+            log.warning("limpar_memoria_midias %s: sem ACK do ID 186", self.peer)
+            return False
+        self.atualizar_midias(timeout=timeout)
+        vazio = media.montar_playlist([])  # "<\n>"
+        inv = media.montar_inventario([]) or "[INT_MEM]\n"
+        for arq, conteudo in (
+            (media.ARQ_SENSOR, vazio),
+            (media.ARQ_PLAYLIST, vazio),
+            (media.ARQ_INVENTARIO, inv),
+        ):
+            try:
+                self.enviar_arquivo(arq, conteudo.encode(media.CHARSET, errors="replace"))
+            except Exception:
+                log.exception("limpar %s em %s", arq, self.peer)
+        self.atualizar_midias(timeout=timeout)
+        log.info("Memória de mídia limpa em %s", self.peer)
+        MONITOR.nota("SC504", self.peer, "memória de mídia limpa (ID 186)")
+        return True
+
     def atualizar_midias(self, timeout: float = 15.0) -> bool:
         """Recarrega lista de mídias / propaganda (ID 117 ReloadADV)."""
         self.enviar(ID_V_UPDATE_MEDIAS)
@@ -745,6 +796,7 @@ class Sc504Connection(threading.Thread):
         if identificador in (
             R_ID_V_RECV_FILE, R_ID_V_SEND_FILE,
             R_ID_V_UPDATE_MEDIAS, R_ID_V_DELETE_FILE,
+            R_ID_V_DELETE_ALL_MEDIAS,
         ):
             if self._entregar_resposta(identificador, dados):
                 return
@@ -852,18 +904,32 @@ class Sc504Connection(threading.Thread):
         self.iniciar_keepalive()
 
     def receber_uid(self, dados: bytes) -> None:
-        """R_ID_V_GET_UID: 6 bytes de MAC + 32 bytes com o nome do modelo."""
-        if len(dados) < 7:
+        """R_ID_V_GET_UID (id 28): ARG_UID — 6 bytes MAC + 32 bytes nome do aparelho.
+
+        É a forma estável de identificar o terminal (IP pode mudar; MAC não).
+        Prefixo OUI Gertec típico: 00:1D:5B.
+        """
+        if len(dados) < 6:
+            log.warning("R_ID_V_GET_UID de %s com só %d byte(s):\n%s",
+                        self.peer, len(dados), hexdump(dados))
             return
-        self.mac = ":".join(f"{b:02x}" for b in dados[:6])
-        nome = dados[6:38].split(b"\x00")[0].decode(CHARSET, errors="replace").strip()
+        self.mac = ":".join(f"{b:02X}" for b in dados[:6])
+        nome = ""
+        if len(dados) >= 7:
+            nome = dados[6:38].split(b"\x00")[0].decode(CHARSET, errors="replace").strip()
         if nome:
             self.nome_aparelho = nome
             self.terminal.model = f"{nome} v{self.versao}".strip() if self.versao else nome
+        # propaga para TerminalInfo (status/API/plugins)
+        try:
+            self.terminal.mac = self.mac
+            self.terminal.nome_aparelho = self.nome_aparelho or nome
+        except Exception:
+            pass
         log.info("Terminal %s: %s (MAC %s)", self.peer,
                  self.nome_aparelho or "?", self.mac)
         MONITOR.nota("SC504", self.peer,
-                     f"UID: {self.nome_aparelho} MAC {self.mac}")
+                     f"UID: {self.nome_aparelho or '?'} MAC {self.mac}")
 
     def iniciar_keepalive(self) -> None:
         if self._keepalive is not None:
@@ -893,7 +959,7 @@ class Sc504Connection(threading.Thread):
         log.info("Código lido por %s: %s", self.peer, codigo)
         self.terminal.queries += 1
         self.terminal.last_barcode = codigo
-        resultado = self.service.query(codigo, origin=self.endereco[0],
+        resultado = self.service.query(codigo, origin=self.peer,
                                        channel="terminal-504")
 
         self.enviar(R_ID_B_READ_SCANNER)   # confirma o recebimento do código
@@ -1005,14 +1071,8 @@ class Sc504Server(threading.Thread):
         try:
             self._sock.bind((self.host, self.port))
         except OSError as exc:
-            log.error("Não foi possível abrir a porta SC504 %s: %s", self.port, exc)
-            if getattr(exc, "winerror", None) == 10013:
-                log.error(
-                    "No Windows esse erro costuma ser porta reservada pelo "
-                    "sistema (Hyper-V/WSL), não firewall. Confira com: "
-                    "netsh interface ipv4 show excludedportrange protocol=tcp — "
-                    "e escolha uma porta fora das faixas listadas."
-                )
+            from arauto.core.netutil import log_falha_porta
+            log_falha_porta(log, "SC504", self.port, exc, host=self.host)
             return
         self._sock.listen(64)
         log.info("Servidor SC504 escutando em %s:%s (enquadramento %s%s)",

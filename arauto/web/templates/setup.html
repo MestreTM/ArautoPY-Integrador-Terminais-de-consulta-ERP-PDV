@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#e7edf5">
+<title>Instalação — ArautoPY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/admin.css">
+<script>
+(function () {
+  try {
+    document.documentElement.dataset.tema = localStorage.getItem("arauto.tema") || "claro";
+  } catch (e) {
+    document.documentElement.dataset.tema = "claro";
+  }
+})();
+</script>
+</head>
+<body class="inst-body inst-body--intro">
+  <div class="inst-intro" id="inst-intro" role="dialog" aria-modal="true" aria-labelledby="inst-intro-titulo">
+    <div class="inst-intro-orb inst-intro-orb--a" aria-hidden="true"></div>
+    <div class="inst-intro-orb inst-intro-orb--b" aria-hidden="true"></div>
+    <div class="inst-intro-card">
+      <span class="inst-intro-selo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V9l8-5 8 5v8"/><path d="M9 21v-6h6v6"/></svg>
+      </span>
+      <h1 id="inst-intro-titulo" class="inst-intro-nome">ArautoPY</h1>
+      <p class="inst-intro-sub">Assistente de instalação</p>
+      <p class="inst-intro-dica">Escolha o tema do painel. Dá para mudar depois.</p>
+      <div class="inst-intro-temas" role="group" aria-label="Tema">
+        <button type="button" class="inst-tema inst-tema--claro inst-tema--ativo" data-tema="claro" id="intro-tema-claro">
+          <span class="inst-tema-amostra" aria-hidden="true"></span>
+          Claro
+        </button>
+        <button type="button" class="inst-tema inst-tema--escuro" data-tema="escuro" id="intro-tema-escuro">
+          <span class="inst-tema-amostra" aria-hidden="true"></span>
+          Escuro
+        </button>
+      </div>
+      <button type="button" class="botao botao--claro inst-intro-cta" id="inst-intro-iniciar">Iniciar</button>
+    </div>
+  </div>
+  <main class="inst-shell inst-shell--largo" id="inst-principal" hidden>
+    <header class="inst-marca">
+      <span class="marca-selo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V9l8-5 8 5v8"/><path d="M9 21v-6h6v6"/></svg>
+      </span>
+      <div>
+        <strong>ArautoPY</strong>
+        <p class="meta-img">Assistente de instalação</p>
+      </div>
+      <button type="button" class="botao-icone" id="btn-tema-setup" title="Alternar tema" aria-label="Alternar tema">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
+      </button>
+    </header>
+
+    <ol class="inst-passos" id="inst-passos" aria-label="Etapas">
+      <li class="inst-passo inst-passo--ativo" data-passo="1"><span>1</span> Acesso</li>
+      <li class="inst-passo" data-passo="2"><span>2</span> Produtos</li>
+      <li class="inst-passo" data-passo="3"><span>3</span> Campos</li>
+      <li class="inst-passo" data-passo="4"><span>4</span> Início</li>
+    </ol>
+
+    <section class="inst-cartao" id="passo-1">
+      <h1>Quem vai entrar no painel?</h1>
+      <p class="dica">Esse login protege a administração. O terminal de consulta na loja continua aberto, sem senha.</p>
+      <form class="inst-form" id="form-conta">
+        <div class="campo">
+          <label for="setup-loja">Nome da loja <span class="meta-img">(opcional)</span></label>
+          <input type="text" id="setup-loja" placeholder="Supermercado Aurora" maxlength="80">
+        </div>
+        <div class="campo">
+          <label for="setup-usuario">Usuário</label>
+          <input type="text" id="setup-usuario" autocomplete="username" required minlength="2" placeholder="admin">
+        </div>
+        <div class="campos inst-2col">
+          <div class="campo">
+            <label for="setup-senha">Senha</label>
+            <input type="password" id="setup-senha" autocomplete="new-password" required minlength="6">
+          </div>
+          <div class="campo">
+            <label for="setup-senha2">Confirmar senha</label>
+            <input type="password" id="setup-senha2" autocomplete="new-password" required minlength="6">
+          </div>
+        </div>
+        <p class="ajuda">Mínimo 6 caracteres. Guarde essa senha — é o único jeito de abrir o painel.</p>
+      </form>
+    </section>
+
+    <section class="inst-cartao" id="passo-2" hidden>
+      <h1>De onde vêm os produtos?</h1>
+      <p class="dica">Escolha o jeito mais simples agora. Dá para mudar depois em Ajustes.</p>
+      <div class="inst-opcoes" id="setup-modos">
+        <label class="inst-opcao">
+          <input type="radio" name="db-mode" value="INTERNAL" checked>
+          <strong>Base interna</strong>
+          <span>Começar agora, sem banco. Cadastre produtos pelo painel.</span>
+        </label>
+        <label class="inst-opcao">
+          <input type="radio" name="db-mode" value="EXTERNAL_TXT">
+          <strong>Arquivo texto</strong>
+          <span>Um .txt no formato código|descrição|preço1|preço2.</span>
+        </label>
+        <label class="inst-opcao">
+          <input type="radio" name="db-mode" value="EXTERNAL_SQL">
+          <strong>Banco externo</strong>
+          <span>Firebird, PostgreSQL, MySQL, SQL Server ou SQLite do ERP/PDV.</span>
+        </label>
+      </div>
+
+      <div class="campo" id="bloco-txt" hidden>
+        <label for="setup-txt">Caminho do arquivo</label>
+        <input type="text" id="setup-txt" class="mono" placeholder="C:/produtos/produtos.txt">
+      </div>
+
+      <div id="bloco-sql" hidden>
+        <header class="config-secao-cab config-secao-cab--sub">
+          <h3>Presets</h3>
+          <p class="dica">Aplica tabela e colunas conhecidos. Você ainda confirma a conexão.</p>
+        </header>
+        <div class="presets-base inst-presets" id="setup-presets">
+          {% for p in presets_base %}
+          <button type="button" class="botao preset-base" data-preset-id="{{ p.id }}">{{ p.nome }}</button>
+          {% endfor %}
+        </div>
+        <p class="ajuda" id="setup-preset-nota" hidden></p>
+        <div id="setup-mapa-preview" class="inst-mapa-preview" hidden></div>
+        <p class="meta-img" id="setup-sql-mapa" hidden></p>
+
+        <header class="config-secao-cab config-secao-cab--sub" style="margin-top:1rem">
+          <h3>Conexão</h3>
+        </header>
+        <div class="db-url-resumo">
+          <p class="db-url-estado" id="db-url-estado">Nenhuma conexão configurada</p>
+          <p class="ajuda">Firebird, PostgreSQL, MySQL/MariaDB, SQL Server e SQLite. A URL não aparece aqui.</p>
+          <div class="campo-com-acao">
+            <button type="button" class="botao botao--claro" id="btn-montar-url">Configurar</button>
+            <button type="button" class="botao" id="btn-testar-sql">Testar conexão</button>
+          </div>
+          <span class="meta-img" id="testar-sql-resultado"></span>
+        </div>
+        <input type="hidden" id="c_DB_URL">
+      </div>
+    </section>
+
+    <section class="inst-cartao" id="passo-3" hidden>
+      <h1>Quais campos o terminal deve ler?</h1>
+      <p class="dica">Um passo de cada vez: tabela e depois cada coluna. O assistente sugere nomes comuns.</p>
+      <div class="inst-mapa-resumo" id="mapa-resumo">
+        <p class="meta-img">Conecte o banco no passo anterior para listar as tabelas.</p>
+      </div>
+      <button type="button" class="botao botao--claro" id="btn-abrir-mapa">Escolher tabela e colunas</button>
+      <article class="produto-amostra" id="setup-amostra" hidden>
+        <header class="produto-amostra-cab">
+          <p class="produto-amostra-rotulo">Produto de teste</p>
+          <button type="button" class="botao botao--fantasma botao--mini" id="btn-setup-amostra-reload" title="Mostrar outro produto">Reload</button>
+        </header>
+        <p class="produto-amostra-desc" id="setup-amostra-desc">—</p>
+        <p class="produto-amostra-meta" id="setup-amostra-meta"></p>
+      </article>
+    </section>
+
+    <section class="inst-cartao" id="passo-4" hidden>
+      <h1>Iniciar com o computador?</h1>
+      <p class="dica" id="autostart-dica">O ArautoPY sobe sozinho quando você ligar esta máquina.</p>
+      <label class="inst-opcao inst-opcao--check" id="bloco-autostart">
+        <input type="checkbox" id="setup-autostart">
+        <strong>Inicializar junto com o sistema</strong>
+        <span id="autostart-motivo"></span>
+      </label>
+      <p class="meta-img" id="autostart-status"></p>
+      <div class="inst-resumo" id="setup-resumo"></div>
+    </section>
+
+    <footer class="inst-rodape">
+      <button type="button" class="botao botao--fantasma" id="btn-voltar" hidden>Voltar</button>
+      <span class="inst-rodape-vao"></span>
+      <button type="button" class="botao botao--claro" id="btn-avancar">Continuar</button>
+    </footer>
+  </main>
+
+  <div class="modal-sql" id="modal-mapa" hidden>
+    <div class="modal-sql-fundo" id="modal-mapa-fundo"></div>
+    <div class="modal-sql-caixa inst-mapa-caixa" role="dialog" aria-modal="true">
+      <header class="modal-sql-cab">
+        <h3 id="mapa-titulo">Tabela de produtos</h3>
+        <button type="button" class="toast-download-x" id="mapa-fechar" title="Fechar">×</button>
+      </header>
+      <p class="dica" id="mapa-dica">Selecione a tabela onde estão os produtos.</p>
+      <p class="inst-mapa-progresso" id="mapa-progresso"></p>
+      <div id="mapa-corpo"></div>
+      <article class="produto-amostra" id="mapa-amostra" hidden>
+        <header class="produto-amostra-cab">
+          <p class="produto-amostra-rotulo">Produto de teste</p>
+          <button type="button" class="botao botao--fantasma botao--mini" id="btn-mapa-amostra-reload" title="Mostrar outro produto">Reload</button>
+        </header>
+        <p class="produto-amostra-desc" id="mapa-amostra-desc">—</p>
+        <p class="produto-amostra-meta" id="mapa-amostra-meta"></p>
+      </article>
+      <footer class="modal-sql-rodape">
+        <button type="button" class="botao botao--fantasma" id="mapa-voltar">Voltar</button>
+        <button type="button" class="botao" id="mapa-pular" hidden>Pular</button>
+        <button type="button" class="botao botao--claro" id="mapa-ok">Continuar</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="modal-sql" id="modal-url" hidden>
+    <div class="modal-sql-fundo" id="modal-url-fundo"></div>
+    <div class="modal-sql-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-url-titulo">
+      <header class="modal-sql-cab">
+        <h3 id="modal-url-titulo">Montar URL de conexão</h3>
+        <button type="button" class="toast-download-x" id="modal-url-fechar" title="Fechar">×</button>
+      </header>
+      <p class="dica">Firebird, PostgreSQL, MySQL/MariaDB, SQL Server e SQLite. A URL é montada ao aplicar.</p>
+      <div class="campos" id="url-campos-simples">
+        <div class="campo campo--cresce">
+          <label for="url-dialecto">Tipo de banco</label>
+          <select id="url-dialecto"></select>
+        </div>
+        <div class="campo" id="url-campo-host">
+          <label for="url-host">Servidor</label>
+          <input type="text" id="url-host" value="localhost">
+        </div>
+        <div class="campo campo--curto" id="url-campo-porta">
+          <label for="url-porta">Porta</label>
+          <input type="number" id="url-porta">
+        </div>
+        <div class="campo" id="url-campo-user">
+          <label for="url-user">Usuário</label>
+          <input type="text" id="url-user">
+        </div>
+        <div class="campo" id="url-campo-pass">
+          <label for="url-pass">Senha</label>
+          <input type="password" id="url-pass" autocomplete="new-password">
+        </div>
+        <div class="campo campo--cresce" id="url-campo-db">
+          <label for="url-db" id="url-db-label">Banco / arquivo</label>
+          <input type="text" id="url-db" class="mono" placeholder="C:/DBVenda/DB/dbvenda.fdb">
+        </div>
+      </div>
+      <p class="ajuda mono" id="url-builder-preview">—</p>
+      <label class="interruptor-linha" style="margin-top:.35rem">
+        <input type="checkbox" id="url-avancado">
+        <span class="trilho"></span><span>Avançado — digitar a URL</span>
+      </label>
+      <div class="campo" id="url-campo-avancado" hidden>
+        <label for="url-bruta">URL de conexão</label>
+        <input type="text" id="url-bruta" class="mono" placeholder="postgresql+psycopg2://user:senha@host:5432/loja">
+      </div>
+      <footer class="modal-sql-rodape">
+        <button type="button" class="botao botao--fantasma" id="modal-url-cancelar">Cancelar</button>
+        <button type="button" class="botao botao--claro" id="modal-url-aplicar">Aplicar na URL</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="aviso aviso--ok" id="aviso" hidden role="status"><strong class="aviso-tipo" id="aviso-tipo">OK</strong><span id="aviso-texto"></span></div>
+  <script>
+  window.ARAUTO_PRESETS_BASE = {{ presets_base | tojson }};
+  window.ARAUTO_AUTOSTART = {{ autostart | tojson }};
+  </script>
+  <script src="/static/js/comum.js"></script>
+  <script src="/static/js/setup.js"></script>
+</body>
+</html>

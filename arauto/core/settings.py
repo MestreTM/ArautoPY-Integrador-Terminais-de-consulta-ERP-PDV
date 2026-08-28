@@ -92,6 +92,8 @@ DEFAULTS: dict[str, str] = {
     "PORT_WEBVIEWER": "6689",
     "PORT_API": "5589",
     "BIND_HOST": "0.0.0.0",
+    "LOCAL_HOSTNAME": "arauto.localhost",
+    "OPEN_BROWSER_ON_START": "true",
     # --- base de dados ---
     # INTERNAL | EXTERNAL_TXT | EXTERNAL_SQL
     "DB_MODE": "INTERNAL",
@@ -102,6 +104,7 @@ DEFAULTS: dict[str, str] = {
     "DB_PASSWORD": "",
     "DB_PRODUCT_TABLE_NAME": "PRODUCTS",
     "DB_COL_BARCODE": "BARCODE",
+    "DB_COL_BARCODE_ALT": "",
     "DB_COL_DESCRIPITION": "DESCRIPTION",
     "DB_COL_PRICE1": "PRICE_1",
     "DB_COL_PRICE2": "PRICE_2",
@@ -132,6 +135,10 @@ DEFAULTS: dict[str, str] = {
     "EXPORT_CSV_ENABLED": "false",
     "EXPORT_CSV_ERASE_DAYS": "90",
     "AUTOSTART_ENABLED": "false",
+    "SETUP_COMPLETE": "",
+    "ADMIN_USER": "",
+    "ADMIN_PASSWORD_HASH": "",
+    "SESSION_SECRET": "",
 }
 
 CURRENCY_SYMBOLS = {"BRL": "R$", "USD": "$", "EUR": "€", "NONE": ""}
@@ -163,6 +170,7 @@ class Settings:
         if not self.path.exists():
             self.save()
             return
+        do_arquivo: set[str] = set()
         with self._mutex:
             for raw in self.path.read_text(encoding="utf-8").splitlines():
                 line = raw.strip()
@@ -171,7 +179,15 @@ class Settings:
                 if "=" not in line:
                     continue
                 key, _, value = line.partition("=")
-                self._data[key.strip()] = value.strip()
+                chave = key.strip()
+                self._data[chave] = value.strip()
+                do_arquivo.add(chave)
+        # Instalação antiga: não reabre o assistente.
+        if "SETUP_COMPLETE" not in do_arquivo:
+            self.set("SETUP_COMPLETE", "true")
+        if not (self.get("SESSION_SECRET") or "").strip():
+            import secrets
+            self.set("SESSION_SECRET", secrets.token_hex(32))
 
     def save(self) -> None:
         with self._mutex:

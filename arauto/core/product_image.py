@@ -144,6 +144,24 @@ def baixar_bytes(url: str, timeout: float = IMG_TIMEOUT_S) -> bytes | None:
         return None
 
 
+def imagem_rgb_fundo(
+    img,
+    fundo: tuple[int, int, int] = (255, 255, 255),
+):
+    """Converte para RGB composando transparência (PNG/LA/P) sobre fundo sólido.
+
+    Sem isso, ``convert("RGB")`` do Pillow pinta alpha de preto — PNG de produto
+    sem fundo ficava com fundo preto no cache e nos terminais.
+    """
+    from PIL import Image
+
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in getattr(img, "info", {})):
+        rgba = img.convert("RGBA")
+        base = Image.new("RGBA", rgba.size, (*fundo, 255))
+        return Image.alpha_composite(base, rgba).convert("RGB")
+    return img.convert("RGB")
+
+
 def _jpeg_metade_qualidade(dados: bytes) -> bytes | None:
     try:
         from PIL import Image
@@ -151,7 +169,7 @@ def _jpeg_metade_qualidade(dados: bytes) -> bytes | None:
         return dados if dados[:2] == b"\xff\xd8" else None
     try:
         img = Image.open(io.BytesIO(dados))
-        img = img.convert("RGB")
+        img = imagem_rgb_fundo(img, (255, 255, 255))
         img.thumbnail((480, 480), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=50, optimize=True)
@@ -239,7 +257,7 @@ def jpeg_para_sc501(
         return None
     try:
         img = Image.open(io.BytesIO(dados))
-        img = img.convert("RGB")
+        img = imagem_rgb_fundo(img, (255, 255, 255))
         img.thumbnail((max_lado, max_lado), Image.Resampling.LANCZOS)
         for qualidade in (85, 75, 65, 55, 45, 35, 25):
             buf = io.BytesIO()

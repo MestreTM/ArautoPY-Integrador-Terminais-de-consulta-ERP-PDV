@@ -1,121 +1,113 @@
-/* Utilidades compartilhadas pelas telas de administração. */
-window.TC = (function () {
+/* ArautoPY — helpers compartilhados do painel (window.TC).
+   Usado por config.js, plugins.js, monitor.js e demais scripts de página. */
+(function () {
   "use strict";
 
-  const $ = (id) => document.getElementById(id);
+  function $(id) {
+    return typeof id === "string" ? document.getElementById(id) : id;
+  }
 
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function esc(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 
-  async function json(url, opcoes) {
-    const r = await fetch(url, Object.assign({ cache: "no-store" }, opcoes || {}));
-    let corpo = null;
-    try { corpo = await r.json(); } catch (e) { /* resposta sem corpo */ }
-    if (!r.ok) {
-      const erro = new Error((corpo && (corpo.detail || corpo.erro)) || `HTTP ${r.status}`);
-      erro.status = r.status;
-      erro.corpo = corpo;
-      throw erro;
+  async function json(url, opts) {
+    opts = opts || {};
+    var headers = Object.assign({ Accept: "application/json" }, opts.headers || {});
+    if (opts.body && typeof opts.body === "object" && !(opts.body instanceof FormData)) {
+      headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      opts = Object.assign({}, opts, { body: JSON.stringify(opts.body) });
     }
-    return corpo;
-  }
-
-  let timerAviso = null;
-  function aviso(texto, ehErro) {
-    const caixa = $("aviso");
-    if (!caixa) return;
-    $("aviso-texto").textContent = texto;
-    caixa.classList.toggle("erro", !!ehErro);
-    caixa.hidden = false;
-    if (timerAviso) clearTimeout(timerAviso);
-    timerAviso = setTimeout(() => { caixa.hidden = true; }, ehErro ? 6000 : 3200);
-  }
-
-  const hora = (iso) => {
-    const d = new Date(iso);
-    return isNaN(d) ? String(iso) : d.toLocaleTimeString("pt-BR", { hour12: false });
-  };
-
-  const desdeAgora = (epoch) => {
-    const s = Math.max(0, Math.round(Date.now() / 1000 - epoch));
-    if (s < 60) return s + "s";
-    if (s < 3600) return Math.round(s / 60) + " min";
-    if (s < 86400) return Math.round(s / 3600) + " h";
-    return Math.round(s / 86400) + " dias";
-  };
-
-  let _imgPoll = null;
-  let _imgOculto = false;
-  let _imgJaMostrouFim = false;
-
-  function _setToast(visivel, st) {
-    const el = $("toast-download");
-    if (!el) return;
-    if (!visivel || _imgOculto) { el.hidden = true; return; }
-    el.hidden = false;
-    el.classList.toggle("toast-download--erro", st && st.fase === "erro");
-    el.classList.toggle("toast-download--ok", st && st.fase === "concluido");
-    const progresso = Math.max(0, Math.min(100, Number(st && st.progresso) || 0));
-    const msg = $("toast-download-msg");
-    const fill = $("toast-download-fill");
-    const pct = $("toast-download-pct");
-    if (msg) msg.textContent = (st && st.mensagem) || "Processando…";
-    if (fill) fill.style.width = progresso + "%";
-    if (pct) pct.textContent = progresso + "%";
-  }
-
-  async function _pollImagens() {
-    try {
-      const r = await fetch("/api/imagens/status", { cache: "no-store" });
-      if (!r.ok) return;
-      const st = await r.json();
-      if (st.em_andamento) {
-        _imgOculto = false;
-        _imgJaMostrouFim = false;
-        _setToast(true, st);
-        return;
-      }
-      if (st.fase === "concluido" && st.progresso === 100 && !_imgJaMostrouFim) {
-        _imgJaMostrouFim = true;
-        _setToast(true, st);
-        setTimeout(() => _setToast(false), 4500);
-        return;
-      }
-      if (st.fase === "erro" && st.mensagem && !_imgJaMostrouFim) {
-        _imgJaMostrouFim = true;
-        _setToast(true, st);
-        setTimeout(() => _setToast(false), 8000);
-        return;
-      }
-      if (!st.em_andamento && st.fase !== "concluido" && st.fase !== "erro") {
-        _setToast(false);
-      }
-    } catch (e) { /* kiosk / offline */ }
-  }
-
-  function iniciarMonitorImagens() {
-    if (_imgPoll) return;
-    const fechar = $("toast-download-fechar");
-    if (fechar) {
-      fechar.addEventListener("click", () => {
-        _imgOculto = true;
-        _setToast(false);
-      });
-    }
-    _pollImagens();
-    _imgPoll = setInterval(_pollImagens, 1500);
-  }
-
-  if (document.getElementById("toast-download")) {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", iniciarMonitorImagens);
+    var res = await fetch(url, Object.assign({}, opts, { headers: headers }));
+    var ct = res.headers.get("content-type") || "";
+    var data = null;
+    if (ct.indexOf("application/json") !== -1) {
+      data = await res.json();
     } else {
-      iniciarMonitorImagens();
+      var txt = await res.text();
+      try { data = JSON.parse(txt); } catch (e) { data = { detail: txt || res.statusText }; }
     }
+    if (!res.ok) {
+      var msg = (data && (data.detail || data.message || data.erro)) || ("HTTP " + res.status);
+      if (Array.isArray(msg)) msg = msg.map(function (m) { return m.msg || m; }).join(" · ");
+      var err = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
   }
 
-  return { $, esc, json, aviso, hora, desdeAgora, iniciarMonitorImagens };
+  var _avisoTimer = null;
+  var AVISO_ROTULO = { ok: "OK", aviso: "Atenção", erro: "Erro", info: "Info" };
+  function aviso(texto, tipo) {
+    var kind = "ok";
+    if (tipo === true || tipo === "erro" || tipo === "error") kind = "erro";
+    else if (tipo === "aviso" || tipo === "warn" || tipo === "alerta") kind = "aviso";
+    else if (tipo === "info") kind = "info";
+    else if (tipo === false || tipo === "ok" || tipo === "sucesso" || tipo == null || tipo === "") kind = "ok";
+    else kind = "ok";
+    var el = $("aviso");
+    var span = $("aviso-texto");
+    if (!el || !span) {
+      try { console[kind === "erro" ? "error" : "log"](texto); } catch (e) {}
+      return;
+    }
+    var badge = $("aviso-tipo");
+    if (!badge) {
+      badge = document.createElement("strong");
+      badge.id = "aviso-tipo";
+      badge.className = "aviso-tipo";
+      el.insertBefore(badge, span);
+    }
+    badge.textContent = AVISO_ROTULO[kind] || "OK";
+    span.textContent = texto == null ? "" : String(texto);
+    el.className = "aviso aviso--" + kind;
+    if (kind === "erro") el.classList.add("erro");
+    el.removeAttribute("hidden");
+    el.hidden = false;
+    el.setAttribute("role", kind === "erro" ? "alert" : "status");
+    if (_avisoTimer) clearTimeout(_avisoTimer);
+    _avisoTimer = setTimeout(function () {
+      el.hidden = true;
+      el.setAttribute("hidden", "");
+    }, kind === "erro" ? 8000 : 4500);
+  }
+
+  function montarSqlUrl(d, campos) {
+    campos = campos || {};
+    if (campos.avancado) {
+      return String(campos.url || "").trim();
+    }
+    if (!d) return "";
+    var host = (campos.host || "localhost").trim() || "localhost";
+    var porta = String(campos.porta || "").trim();
+    var user = campos.user || "";
+    var pass = campos.pass || "";
+    var db = String(campos.db || "").trim().replace(/\\/g, "/");
+    if (d.id === "sqlite") return "sqlite:///" + db;
+    var auth = user ? (encodeURIComponent(user) + (pass !== "" ? ":" + encodeURIComponent(pass) : "") + "@") : "";
+    var portPart = porta ? (":" + porta) : "";
+    if (d.arquivo && /^[A-Za-z]:/.test(db) && db.charAt(0) !== "/") db = "/" + db;
+    var path = db ? (db.charAt(0) === "/" ? db : "/" + db) : "/";
+    var url = (d.scheme || "") + "://" + auth + host + portPart + path;
+    if (d.id === "mssql" && String(d.scheme || "").indexOf("pyodbc") >= 0 && url.indexOf("driver=") < 0) {
+      url += "?driver=ODBC+Driver+17+for+SQL+Server";
+    }
+    return url;
+  }
+
+  window.TC = {
+    $: $,
+    esc: esc,
+    json: json,
+    aviso: aviso,
+    montarSqlUrl: montarSqlUrl,
+  };
 })();
-
-
-

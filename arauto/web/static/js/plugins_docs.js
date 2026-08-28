@@ -1,43 +1,63 @@
+/* Documentação de plugins — busca no markdown renderizado. */
 (function () {
   "use strict";
-  const { $ } = window.TC;
+  function $(id) { return document.getElementById(id); }
+
+  const campo = $("docs-busca");
   const corpo = $("docs-corpo");
-  const busca = $("docs-busca");
   const status = $("docs-busca-status");
-  if (!corpo || !busca) return;
+  if (!campo || !corpo) return;
 
-  const original = corpo.innerHTML;
-
-  function limparMarcas(html) {
-    return html.replace(/<mark class="docs-mark">/g, "").replace(/<\/mark>/g, "");
+  const n = document.getElementById("tab-n-instalados");
+  if (n && window.TC && window.TC.json) {
+    window.TC.json("/api/plugins").then((r) => {
+      n.textContent = String((r.plugins || []).length);
+    }).catch(() => {});
   }
 
-  busca.addEventListener("input", () => {
-    const q = (busca.value || "").trim();
+  let htmlOriginal = corpo.innerHTML;
+
+  function contarMarks(root) {
+    return root.querySelectorAll("mark").length;
+  }
+
+  campo.addEventListener("input", () => {
+    const q = (campo.value || "").trim();
     if (!q) {
-      corpo.innerHTML = original;
+      corpo.innerHTML = htmlOriginal;
       if (status) status.hidden = true;
       return;
     }
-    const texto = corpo.innerText || "";
-    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    let count = 0;
-    // Highlight in HTML roughly by walking text — simple approach on textContent rebuild is hard;
-    // highlight by replacing in innerHTML carefully for plain text nodes via regex on escaped content
-    let html = limparMarcas(original);
-    html = html.replace(/>([^<]+)</g, (m, text) => {
-      const novo = text.replace(re, (hit) => {
-        count += 1;
-        return '<mark class="docs-mark">' + hit + '</mark>';
-      });
-      return '>' + novo + '<';
+    const tmp = document.createElement("div");
+    tmp.innerHTML = htmlOriginal;
+    const qLower = q.toLowerCase();
+    const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      const t = node.nodeValue;
+      if (!t || !t.trim()) return;
+      const lower = t.toLowerCase();
+      let idx = lower.indexOf(qLower);
+      if (idx === -1) return;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      while (idx !== -1) {
+        if (idx > last) frag.appendChild(document.createTextNode(t.slice(last, idx)));
+        const mark = document.createElement("mark");
+        mark.textContent = t.slice(idx, idx + q.length);
+        frag.appendChild(mark);
+        last = idx + q.length;
+        idx = lower.indexOf(qLower, last);
+      }
+      if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+      node.parentNode.replaceChild(frag, node);
     });
-    corpo.innerHTML = html;
+    corpo.innerHTML = tmp.innerHTML;
     if (status) {
+      const n = contarMarks(corpo);
       status.hidden = false;
-      status.textContent = count ? (count + " ocorrência(s)") : "Nada encontrado";
+      status.textContent = n ? n + " ocorrência(s)" : "Nada encontrado";
     }
   });
 })();
-
-

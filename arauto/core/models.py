@@ -122,11 +122,26 @@ class Product:
                     return str(row[candidate]).strip()
             return ""
 
+        barcode = pick("barcode")
+        codigo_alt = pick("barcode_alt")
+        extra: dict = {}
+        if codigo_alt:
+            extra["codigo_adicional"] = codigo_alt
+            extra["coluna_codigo_adicional"] = cols.get("barcode_alt") or ""
+        if not barcode and codigo_alt:
+            barcode = codigo_alt
+            extra["origem_codigo"] = "adicional"
+            extra["codigo_principal"] = ""
+        else:
+            extra["origem_codigo"] = "barcode"
+            extra["codigo_principal"] = barcode
+
         return Product(
-            barcode=pick("barcode"),
+            barcode=barcode,
             description=pick("description"),
             price1=pick("price1"),
             price2=pick("price2"),
+            extra=extra,
         )
 
 

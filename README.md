@@ -49,6 +49,25 @@ Recriação em Python do Gertec TC Server, com painel web, API REST, plugins e s
 
 ## Instalação rápida
 
+### Docker (recomendado para servidor / Linux)
+
+```bash
+docker compose up -d
+```
+
+Painel em http://localhost:6689/painel. Detalhes em [DOCKER.md](DOCKER.md).
+
+Sem clonar o repositório, se a imagem já estiver no GitHub Container Registry:
+
+```bash
+docker run -d --name arauto --restart unless-stopped \
+  -p 6689:6689 -p 5589:5589 -p 6500:6500 -p 16510:16510 \
+  -v arauto-data:/data \
+  ghcr.io/mestretm/arautopy:latest
+```
+
+### Local (Python)
+
 ```bash
 pip install -r requirements.txt
 python run.py
@@ -190,6 +209,7 @@ Preset DBWare (Firebird) — caminho do `.fdb` varia por instalação:
 DB_MODE=EXTERNAL_SQL
 DB_URL=firebird+firebird://SYSDBA:masterkey@localhost/C:/DBVenda/DB/dbvenda.fdb?charset=WIN1252
 DB_COL_BARCODE=CODIGO_BARRA
+DB_COL_BARCODE_ALT=REFERENCIA
 DB_COL_DESCRIPITION=DESCRICAO
 DB_COL_PRICE1=PRC_VENDA
 DB_COL_PRICE2=PRC_VENDA

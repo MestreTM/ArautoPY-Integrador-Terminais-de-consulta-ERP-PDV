@@ -1,0 +1,31 @@
+<nav class="plugins-tabs" role="tablist" aria-label="Plugins">
+  {% if aba_plugins == 'instalados' %}
+  <button type="button" class="plugins-tab plugins-tab--ativa" role="tab" aria-selected="true"
+          data-aba="instalados" id="tab-instalados">
+    Plugins instalados
+    <span class="plugins-tab-n" id="tab-n-instalados">—</span>
+  </button>
+  <button type="button" class="plugins-tab" role="tab" aria-selected="false"
+          data-aba="instalar" id="tab-instalar">
+    Instalar plugins
+  </button>
+  {% elif aba_plugins == 'instalar' %}
+  <button type="button" class="plugins-tab" role="tab" aria-selected="false"
+          data-aba="instalados" id="tab-instalados">
+    Plugins instalados
+    <span class="plugins-tab-n" id="tab-n-instalados">—</span>
+  </button>
+  <button type="button" class="plugins-tab plugins-tab--ativa" role="tab" aria-selected="true"
+          data-aba="instalar" id="tab-instalar">
+    Instalar plugins
+  </button>
+  {% else %}
+  <a class="plugins-tab" href="/plugins#instalados">
+    Plugins instalados
+    <span class="plugins-tab-n" id="tab-n-instalados">—</span>
+  </a>
+  <a class="plugins-tab" href="/plugins#instalar">Instalar plugins</a>
+  {% endif %}
+  <a class="plugins-tab plugins-tab--link{% if aba_plugins == 'docs' %} plugins-tab--ativa{% endif %}"
+     href="/plugins/docs">Documentação</a>
+</nav>

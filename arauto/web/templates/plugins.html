@@ -2,40 +2,70 @@
 {% block titulo %}Plugins{% endblock %}
 {% block cabecalho %}Plugins{% endblock %}
 {% block conteudo %}
-<section class="cartao">
-  <header class="config-secao-cab">
-    <h2>Plugins instalados</h2>
-    <p class="dica">
-      Extensões em <span class="mono">{{ pasta }}</span>.
-      Instalar, atualizar ou alterar código exige <strong>reiniciar o servidor</strong> para carregar.
-    </p>
-  </header>
 
-  <div class="plugins-acoes">
-    <a class="botao botao--claro" href="/plugins/docs">Ver documentação</a>
-  </div>
+<div class="plugins-wp">
+  {% set aba_plugins = "instalados" %}
+  {% include "_plugins_nav.html" %}
 
-  <div class="plugin-drop" id="plugin-drop" tabindex="0">
-    <p><strong>Instalar plugin</strong></p>
-    <p class="meta-img">Arraste um arquivo <span class="mono">.zip</span> aqui ou escolha no computador.</p>
-    <div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
-      <input type="file" id="plugin-arquivo" accept=".zip,application/zip" hidden>
-      <button type="button" class="botao botao--claro" id="btn-plugin-escolher">Selecionar ZIP</button>
-      <label class="interruptor-linha" style="margin:0">
-        <input type="checkbox" id="plugin-atualizar">
-        <span>Atualizar se já existir</span>
-      </label>
+  <section class="plugins-painel" id="painel-instalados" role="tabpanel" aria-labelledby="tab-instalados">
+    <div class="plugins-toolbar">
+      <p class="dica plugins-toolbar-dica">
+        Extensões em <span class="mono">{{ pasta }}</span>.
+        Ativar e desativar vale na hora; código novo pode pedir reinício.
+      </p>
+      <div class="filtro-fonte" role="group" aria-label="Filtrar instalados">
+        <button type="button" class="botao botao--mini filtro-fonte-btn filtro-fonte-btn--ativo" data-filtro="">Todos</button>
+        <button type="button" class="botao botao--mini filtro-fonte-btn" data-filtro="ativos">Ativos</button>
+        <button type="button" class="botao botao--mini filtro-fonte-btn" data-filtro="inativos">Inativos</button>
+        <button type="button" class="botao botao--mini filtro-fonte-btn" data-filtro="atualizacao">Com atualização</button>
+      </div>
+    </div>
+    <div id="plugins-lista" class="plugins-tabela-wrap">
+      <p class="meta-img">Carregando…</p>
+    </div>
+  </section>
+
+  <section class="plugins-painel" id="painel-instalar" role="tabpanel" aria-labelledby="tab-instalar" hidden>
+    <div class="plugins-toolbar">
+      <div class="plugins-busca">
+        <input type="search" id="catalogo-busca" placeholder="Buscar no catálogo…" autocomplete="off">
+      </div>
+      <div class="plugins-toolbar-acoes">
+        <button type="button" class="botao botao--claro" id="btn-abrir-zip">Enviar plugin local (.zip)</button>
+        <button type="button" class="botao" id="btn-catalogo-refresh">Atualizar catálogo</button>
+      </div>
+    </div>
+    <p class="meta-img" id="catalogo-status">Índice público. Nada é instalado sem o seu clique.</p>
+    <div id="catalogo-lista" class="plugins-lista">
+      <p class="meta-img">Carregando catálogo…</p>
+    </div>
+  </section>
+</div>
+
+<div class="modal-sql" id="modal-zip" hidden>
+  <div class="modal-sql-fundo" id="modal-zip-fundo"></div>
+  <div class="modal-sql-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-zip-titulo">
+    <header class="modal-sql-cab">
+      <h3 id="modal-zip-titulo">Instalar plugin local</h3>
+      <button type="button" class="toast-download-x" id="modal-zip-fechar" title="Fechar">×</button>
+    </header>
+    <p class="dica">Use um arquivo <span class="mono">.zip</span> com <span class="mono">plugin.py</span> e <span class="mono">plugin.json</span>. Se o plugin já existir, o sistema pergunta antes de substituir.</p>
+    <div class="plugin-drop" id="plugin-drop" tabindex="0">
+      <p><strong>Arraste o ZIP aqui</strong></p>
+      <p class="meta-img">ou escolha no computador</p>
+      <div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+        <input type="file" id="plugin-arquivo" accept=".zip,application/zip" hidden>
+        <input type="checkbox" id="plugin-atualizar" checked hidden>
+        <button type="button" class="botao botao--claro" id="btn-plugin-escolher">Selecionar ZIP</button>
+      </div>
     </div>
     <p class="meta-img" id="plugin-install-status" hidden></p>
+    <footer class="modal-sql-rodape">
+      <button type="button" class="botao botao--fantasma" id="modal-zip-cancelar">Fechar</button>
+    </footer>
   </div>
-
-  <div id="plugins-lista" class="plugins-lista" style="margin-top:1rem">
-    <p class="meta-img">Carregando…</p>
-  </div>
-</section>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/plugins.js"></script>
 {% endblock %}
-
-
