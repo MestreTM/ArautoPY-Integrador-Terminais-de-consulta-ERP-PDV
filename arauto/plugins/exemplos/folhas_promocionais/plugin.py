@@ -116,6 +116,18 @@ def _template_path(tid: str) -> Path | None:
     return _pasta_templates() / f"{tid}.json"
 
 
+def _gravar_template(tpl: dict) -> dict:
+    tid = (tpl.get("id") or "").strip() or uuid.uuid4().hex[:12]
+    if not _ID_SEGURO.match(tid):
+        tid = uuid.uuid4().hex[:12]
+    tpl["id"] = tid
+    tpl["nome"] = (tpl.get("nome") or "Template").strip() or "Template"
+    path = _template_path(tid)
+    assert path is not None
+    path.write_text(json.dumps(tpl, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return tpl
+
+
 def _service(ctx):
     return ctx.service
 
@@ -743,15 +755,8 @@ def setup(ctx):
         tpl = corpo.get("template") if isinstance(corpo, dict) else None
         if not isinstance(tpl, dict):
             return JSONResponse({"ok": False, "detail": "Template inválido."}, status_code=400)
-        tid = (tpl.get("id") or "").strip() or uuid.uuid4().hex[:12]
-        if not _ID_SEGURO.match(tid):
-            tid = uuid.uuid4().hex[:12]
-        tpl["id"] = tid
-        tpl["nome"] = (tpl.get("nome") or "Template").strip() or "Template"
-        path = _template_path(tid)
-        assert path is not None
-        path.write_text(json.dumps(tpl, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        return {"ok": True, "id": tid, "detail": "Template salvo."}
+        tpl = _gravar_template(tpl)
+        return {"ok": True, "id": tpl["id"], "detail": "Template salvo."}
 
     @ctx.app.delete("/plugins/folhas-promocionais/api/templates/{tid}")
     def api_apagar_template(tid: str):
@@ -946,7 +951,8 @@ def setup(ctx):
                 if re.match(r"^[A-Za-z0-9._-]+$", src):
                     cam["src"] = f"/plugins/folhas-promocionais/api/midia/{src}"
 
-        return {"ok": True, "template": tpl}
+        tpl = _gravar_template(tpl)
+        return {"ok": True, "template": tpl, "id": tpl.get("id"), "salvo": True}
 
     @ctx.app.post("/plugins/folhas-promocionais/api/exportar")
     def api_exportar(corpo: dict = Body(...)):

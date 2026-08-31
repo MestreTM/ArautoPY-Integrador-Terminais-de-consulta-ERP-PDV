@@ -71,7 +71,7 @@ def create_viewer(service: QueryService) -> FastAPI:
             "nao_encontrado": settings.get("LABEL_NOT_FOUND"),
             "reset_segundos": settings.get_int("IDLE_RESET_SECONDS", 12),
             "abas_plugins": [
-                {"id": a.id, "rotulo": a.rotulo, "href": a.href}
+                {"id": a.id, "rotulo": a.rotulo, "href": a.href, "icone": getattr(a, "icone", "") or ""}
                 for a in plugins_mod.abas_ativas()
             ],
             "usuario_painel": "",
@@ -231,7 +231,9 @@ def create_viewer(service: QueryService) -> FastAPI:
         except Exception:
             corpo = {}
         from ..core import autostart as _autostart
-        if corpo.get("autostart") is True:
+        if not _autostart.suporte().get("disponivel"):
+            pass
+        elif corpo.get("autostart") is True:
             _autostart.habilitar()
         elif corpo.get("autostart") is False:
             _autostart.desabilitar()
@@ -785,6 +787,13 @@ def create_viewer(service: QueryService) -> FastAPI:
     @app.post("/api/autostart")
     def api_autostart_set(corpo: dict = Body(...)) -> dict:
         from ..core import autostart
+        if not autostart.suporte().get("disponivel"):
+            st = autostart.status()
+            return {
+                "ok": False,
+                "detail": st.get("motivo") or "Inicialização com o sistema não se aplica neste ambiente.",
+                "status": st,
+            }
         bruto = corpo.get("ativo")
         if isinstance(bruto, str):
             ativo = bruto.strip().lower() in ("1", "true", "yes", "sim", "on")
@@ -895,6 +904,13 @@ def create_viewer(service: QueryService) -> FastAPI:
             r["reload"] = rr
         return JSONResponse(r, status_code=200 if r.get("ok") else 400)
 
+    @app.get("/api/plugins/{plugin_id}/icone")
+    def api_plugin_icone(plugin_id: str):
+        path = plugins_mod.caminho_arquivo_icone(plugin_id)
+        if path is None or not path.is_file():
+            return JSONResponse({"ok": False, "detail": "Ícone não encontrado."}, status_code=404)
+        return FileResponse(path)
+
     @app.get("/api/plugins")
     def api_plugins() -> dict:
         return {
@@ -910,6 +926,7 @@ def create_viewer(service: QueryService) -> FastAPI:
                     "habilitado": p.habilitado,
                     "padrao": bool(getattr(p, "padrao", False) or plugins_mod.eh_padrao(p.id)),
                     "erro": p.erro,
+                    "icone": p.icone_url or "",
                     "abas": [{"id": a.id, "rotulo": a.rotulo, "href": a.href} for a in p.abas],
                 }
                 for p in plugins_mod.listar()

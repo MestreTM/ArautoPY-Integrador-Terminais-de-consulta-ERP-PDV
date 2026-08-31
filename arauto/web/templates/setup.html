@@ -61,7 +61,8 @@
       <li class="inst-passo inst-passo--ativo" data-passo="1"><span>1</span> Acesso</li>
       <li class="inst-passo" data-passo="2"><span>2</span> Produtos</li>
       <li class="inst-passo" data-passo="3"><span>3</span> Campos</li>
-      <li class="inst-passo" data-passo="4"><span>4</span> Início</li>
+      <li class="inst-passo" data-passo="4"><span>4</span> Extensões</li>
+      <li class="inst-passo" data-passo="5" id="inst-passo-5-rotulo"><span>5</span> Início</li>
     </ol>
 
     <section class="inst-cartao" id="passo-1">
@@ -164,7 +165,22 @@
     </section>
 
     <section class="inst-cartao" id="passo-4" hidden>
-      <h1>Iniciar com o computador?</h1>
+      <h1>Extensões (Plugins)</h1>
+      <p class="dica">Opcional. Nada é instalado sozinho. Escolha agora ou deixe para o painel.</p>
+      <div id="setup-plugins-ok">
+        <div class="setup-plug-lista" id="setup-plug-lista"></div>
+        <button type="button" class="botao" id="btn-explorar-plugins" style="margin-top:.85rem">Explorar mais plugins</button>
+      </div>
+      <div class="setup-plug-offline" id="setup-plugins-erro" hidden>
+        <div class="setup-plug-pulse" aria-hidden="true"></div>
+        <p class="setup-plug-offline-titulo">Não foi possível se conectar ao servidor</p>
+        <p class="dica">Verifique a conexão com a internet e tente de novo.</p>
+        <button type="button" class="botao botao--claro" id="btn-plugins-retry">Tentar novamente</button>
+      </div>
+    </section>
+
+    <section class="inst-cartao" id="passo-5" hidden>
+      <h1 id="passo-5-titulo">Iniciar com o computador?</h1>
       <p class="dica" id="autostart-dica">O ArautoPY sobe sozinho quando você ligar esta máquina.</p>
       <label class="inst-opcao inst-opcao--check" id="bloco-autostart">
         <input type="checkbox" id="setup-autostart">
@@ -254,6 +270,25 @@
       <footer class="modal-sql-rodape">
         <button type="button" class="botao botao--fantasma" id="modal-url-cancelar">Cancelar</button>
         <button type="button" class="botao botao--claro" id="modal-url-aplicar">Aplicar na URL</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="modal-sql" id="modal-plugins" hidden>
+    <div class="modal-sql-fundo" id="modal-plugins-fundo"></div>
+    <div class="modal-sql-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-plugins-titulo" style="width:min(42rem,100%)">
+      <header class="modal-sql-cab">
+        <div>
+          <h2 id="modal-plugins-titulo">Catálogo de extensões</h2>
+          <p class="dica">Instale o que precisar. Pode pular e fazer isso depois no painel.</p>
+        </div>
+        <button type="button" class="botao botao--fantasma" id="modal-plugins-fechar">Fechar</button>
+      </header>
+      <div class="setup-plug-lista" id="setup-plug-modal-lista"></div>
+      <footer class="modal-sql-rodape" style="justify-content:space-between">
+        <button type="button" class="botao" id="setup-plug-prev">Anterior</button>
+        <span class="meta-img" id="setup-plug-pagina">1 / 1</span>
+        <button type="button" class="botao" id="setup-plug-next">Próxima</button>
       </footer>
     </div>
   </div>

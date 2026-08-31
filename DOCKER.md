@@ -29,8 +29,8 @@ docker rm -f arauto
 ## 2. Pelo repositório (compose)
 
 ```bash
-git clone https://github.com/mestretm/ArautoPY.git
-cd ArautoPY
+git clone https://github.com/MestreTM/ArautoPY-Integrador-Terminais-de-consulta-ERP-PDV.git
+cd ArautoPY-Integrador-Terminais-de-consulta-ERP-PDV
 docker compose up -d
 ```
 

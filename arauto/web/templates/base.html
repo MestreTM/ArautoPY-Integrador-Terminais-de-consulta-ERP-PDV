@@ -79,7 +79,12 @@
         <p class="menu-titulo">Plugins ativos</p>
         {% for aba in abas_plugins|default([]) %}
         <a href="{{ aba.href }}" class="item {% if pagina == aba.id %}item--ativo{% endif %}" title="{{ aba.rotulo }}">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><path d="M12 8.5v7M8.5 12h7"/></svg>
+          {% if aba.icone %}
+          <img class="item-ico" src="{{ aba.icone }}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <svg class="item-ico-ph" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 14.5 11 9l2.2 4.2L15 11l2 3.5"/><circle cx="9" cy="8.5" r=".8" fill="currentColor"/></svg>
+          {% else %}
+          <svg class="item-ico-ph" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 14.5 11 9l2.2 4.2L15 11l2 3.5"/><circle cx="9" cy="8.5" r=".8" fill="currentColor"/></svg>
+          {% endif %}
           <span class="item-txt">{{ aba.rotulo }}</span>
         </a>
         {% endfor %}

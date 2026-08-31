@@ -87,14 +87,19 @@
           ? `<button type="button" class="botao botao--claro botao--mini" data-upd-online="${esc(p.id)}">Atualizar</button>`
           : "";
         const del = `<button type="button" class="botao botao--fantasma botao--mini" data-del="${esc(p.id)}" style="color:var(--erro)">Excluir</button>`;
+        const ico = p.icone
+          ? `<img class="plugin-ico" src="${esc(p.icone)}" alt="" onerror="this.classList.add('plugin-ico--vazio');this.removeAttribute('src')">`
+          : `<span class="plugin-ico plugin-ico--vazio" aria-hidden="true"></span>`;
         return `<tr class="${p.habilitado ? "" : "linha-falha"}">
           <td>
+            <div class="plugin-linha-nome">${ico}<div>
             <strong>${esc(p.nome)}</strong>
             <span class="mono">v${esc(p.versao)}</span>
             ${tags}
             <p class="meta-img" style="margin:.25rem 0 0">${esc(p.descricao || "Sem descrição")}</p>
             <p class="meta-img">ID <span class="mono">${esc(p.id)}</span>${p.autor ? " · " + esc(p.autor) : ""}${abas ? " · Abas: " + abas : ""}</p>
             ${p.erro ? `<p class="meta-img" style="color:var(--erro)">${esc(p.erro)}</p>` : ""}
+            </div></div>
           </td>
           <td>${estado}</td>
           <td><div class="plugins-acoes-cel">${toggle}${upd}${del}</div></td>
@@ -122,8 +127,8 @@
     box.innerHTML = lista.map((p) => {
       const icoSrc = p.icone || "";
       const ico = icoSrc
-        ? `<img class="plugin-ico" src="${esc(icoSrc)}" alt="">`
-        : `<div class="plugin-ico plugin-ico--vazio"></div>`;
+        ? `<img class="plugin-ico" src="${esc(icoSrc)}" alt="" onerror="this.classList.add('plugin-ico--vazio');this.removeAttribute('src')">`
+        : `<span class="plugin-ico plugin-ico--vazio" aria-hidden="true"></span>`;
       let acao = "";
       if (p.status === "instalado" && p.atualizavel) {
         acao = `<button type="button" class="botao botao--claro" data-upd-online="${esc(p.id)}">Atualizar</button>`;

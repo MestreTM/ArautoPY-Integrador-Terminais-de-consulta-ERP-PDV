@@ -1,3 +1,6 @@
+# Só o que NÃO entra na imagem.
+# docs/, templates, static, plugins/exemplos e run.py PRECISAM ir junto.
+
 .git
 .github
 .venv

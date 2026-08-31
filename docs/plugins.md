@@ -56,9 +56,12 @@ Estado ligado/desligado:
   "nome": "Meu plugin",
   "versao": "1.0.0",
   "descricao": "Faz algo útil na loja.",
-  "autor": "Sua empresa"
+  "autor": "Sua empresa",
+  "icone": "icon.jpg"
 }
 ```
+
+Ícone: o padrão é `icon.jpg` na raiz do plugin (também vale `icon.png` / `icons/icon.jpg`). Se o arquivo tiver outro nome, informe em `icone` (ex.: `"icons/gerador_de_cartaz.jpg"`). Sem arquivo, o painel mostra um placeholder.
 
 ### `plugin.py`
 

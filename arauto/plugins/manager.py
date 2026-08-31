@@ -17,6 +17,17 @@ from .base import Plugin, PluginContext, PluginInfo, PluginTab
 log = logging.getLogger("arauto.plugins")
 
 PLUGINS_DIR = APP_DIR / "plugins"
+ICONES_PADRAO = (
+    "icon.jpg",
+    "icon.jpeg",
+    "icon.png",
+    "icon.webp",
+    "icons/icon.jpg",
+    "icons/icon.jpeg",
+    "icons/icon.png",
+    "icons/icon.webp",
+)
+_EXT_ICONE = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
 ESTADO_ARQUIVO = APP_DIR / "plugins_estado.json"
 
 _lock = threading.RLock()
@@ -45,40 +56,8 @@ def eh_padrao(plugin_id: str) -> bool:
 
 
 def _garantir_plugins_padrao() -> None:
-    """Oferece os plugins embutidos só na primeira vez. Depois o usuário manda."""
-    import shutil
-    exemplos = Path(__file__).resolve().parent / "exemplos"
-    marca = PLUGINS_DIR / ".embutidos.json"
-    ja = set()
-    if marca.is_file():
-        try:
-            ja = set(json.loads(marca.read_text(encoding="utf-8")).get("oferecidos") or [])
-        except Exception:
-            ja = set()
-    mudou = False
-    for nome in _PLUGINS_PADRAO:
-        origem = exemplos / nome
-        if not origem.is_dir():
-            continue
-        destino = PLUGINS_DIR / nome
-        if nome in ja:
-            continue
-        try:
-            if not destino.exists():
-                shutil.copytree(origem, destino)
-                log.info("Plugin embutido oferecido: %s", destino)
-            ja.add(nome)
-            mudou = True
-        except OSError:
-            log.debug("Não foi possível oferecer plugin embutido %s", nome, exc_info=True)
-    if mudou or not marca.is_file():
-        try:
-            marca.write_text(
-                json.dumps({"oferecidos": sorted(ja)}, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-        except OSError:
-            pass
+    """Não instala mais nada sozinho. Extensões entram pelo assistente ou pelo painel."""
+    return
 
 
 def _ler_estado() -> dict[str, bool]:
@@ -150,6 +129,66 @@ def _carregar_modulo(pasta: Path) -> ModuleType:
     return mod
 
 
+def _dentro_da_pasta(pasta: Path, alvo: Path) -> bool:
+    try:
+        alvo.resolve().relative_to(pasta.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def resolver_icone(pasta: Path, meta: dict | None = None) -> str:
+    """Caminho relativo do ícone. Padrão: icon.jpg. plugin.json pode definir ``icone``."""
+    meta = meta or {}
+    declarado = str(meta.get("icone") or meta.get("icon") or "").strip().replace("\\", "/")
+    candidatos: list[str] = []
+    if declarado and ".." not in Path(declarado).parts:
+        candidatos.append(declarado.lstrip("/"))
+    candidatos.extend(ICONES_PADRAO)
+    raiz = pasta.resolve()
+    vistos: set[str] = set()
+    for rel in candidatos:
+        if not rel or rel in vistos:
+            continue
+        vistos.add(rel)
+        alvo = (raiz / rel)
+        if not _dentro_da_pasta(raiz, alvo):
+            continue
+        if alvo.is_file() and alvo.suffix.lower() in _EXT_ICONE:
+            return rel
+    return ""
+
+
+def url_icone(plugin_id: str, tem_arquivo: bool) -> str:
+    if not tem_arquivo or not plugin_id:
+        return ""
+    return f"/api/plugins/{plugin_id}/icone"
+
+
+def caminho_arquivo_icone(plugin_id: str) -> Path | None:
+    pasta = None
+    for p in _descobrir_pastas():
+        if p.name == plugin_id:
+            pasta = p
+            break
+    if pasta is None:
+        return None
+    meta: dict = {}
+    meta_file = pasta / "plugin.json"
+    if meta_file.is_file():
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        except Exception:
+            meta = {}
+    rel = resolver_icone(pasta, meta)
+    if not rel:
+        return None
+    alvo = (pasta / rel).resolve()
+    if not _dentro_da_pasta(pasta, alvo) or not alvo.is_file():
+        return None
+    return alvo
+
+
 def listar() -> list[PluginInfo]:
     """Lista plugins no disco (habilitados ou não), sem exigir app carregado."""
     infos: list[PluginInfo] = []
@@ -168,6 +207,7 @@ def listar() -> list[PluginInfo]:
                 meta.update(json.loads(meta_file.read_text(encoding="utf-8")))
             except Exception:
                 pass
+        rel_ico = resolver_icone(pasta, meta)
         info = PluginInfo(
             id=str(meta.get("id") or pid),
             nome=str(meta.get("nome") or pid),
@@ -177,6 +217,8 @@ def listar() -> list[PluginInfo]:
             caminho=str(pasta),
             habilitado=esta_habilitado(pid),
             padrao=eh_padrao(pid),
+            icone=rel_ico,
+            icone_url=url_icone(str(meta.get("id") or pid), bool(rel_ico)),
         )
         if info.id in _carregados:
             c = _carregados[info.id]
@@ -204,6 +246,7 @@ def carregar_todos(app, service) -> list[PluginInfo]:
                 meta.update(json.loads(meta_file.read_text(encoding="utf-8")))
             except Exception:
                 pass
+        rel_ico = resolver_icone(pasta, meta)
         info = PluginInfo(
             id=str(meta.get("id") or pid),
             nome=str(meta.get("nome") or pid),
@@ -213,6 +256,8 @@ def carregar_todos(app, service) -> list[PluginInfo]:
             caminho=str(pasta),
             habilitado=esta_habilitado(pid),
             padrao=eh_padrao(pid),
+            icone=rel_ico,
+            icone_url=url_icone(str(meta.get("id") or pid), bool(rel_ico)),
         )
         if not info.habilitado:
             _carregados[info.id] = info
@@ -234,6 +279,8 @@ def carregar_todos(app, service) -> list[PluginInfo]:
             else:
                 raise RuntimeError("plugin.py precisa definir setup(ctx) ou classe Plugin")
             info.abas = list(ctx._abas)
+            for aba in info.abas:
+                aba.icone = info.icone_url
             _hooks_query.extend(ctx._hooks_query)
             log.info("Plugin carregado: %s v%s (%s)", info.nome, info.versao, pasta)
         except Exception as exc:
@@ -508,6 +555,7 @@ def recarregar_plugin(plugin_id: str) -> dict:
                 meta.update(json.loads(meta_file.read_text(encoding="utf-8")))
             except Exception:
                 pass
+        rel_ico = resolver_icone(pasta, meta)
         info = PluginInfo(
             id=str(meta.get("id") or pid),
             nome=str(meta.get("nome") or pid),
@@ -516,6 +564,8 @@ def recarregar_plugin(plugin_id: str) -> dict:
             autor=str(meta.get("autor") or ""),
             caminho=str(pasta),
             habilitado=True,
+            icone=rel_ico,
+            icone_url=url_icone(str(meta.get("id") or pid), bool(rel_ico)),
         )
         try:
             mod = _carregar_modulo(pasta)
@@ -528,6 +578,8 @@ def recarregar_plugin(plugin_id: str) -> dict:
             else:
                 raise RuntimeError("plugin.py precisa definir setup(ctx)")
             info.abas = list(ctx._abas)
+            for aba in info.abas:
+                aba.icone = info.icone_url
             _hooks_query.extend(ctx._hooks_query)
             _carregados[info.id] = info
             log.info("Plugin recarregado: %s", info.id)

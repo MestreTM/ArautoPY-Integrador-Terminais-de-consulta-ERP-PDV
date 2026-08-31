@@ -1120,7 +1120,18 @@ html[data-tema="claro"] .layout-canvas-scroll {
 }
 
 .plugin-ico { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: none; background: color-mix(in srgb, var(--texto) 8%, transparent); }
-.plugin-ico--vazio { display: block; }
+.plugin-ico--vazio {
+  display: grid; place-items: center;
+  background:
+    color-mix(in srgb, var(--texto) 8%, transparent)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.6'><rect x='4' y='4' width='16' height='16' rx='3'/><path d='M9 14.5 11 9l2.2 4.2L15 11l2 3.5'/><circle cx='9' cy='8.5' r='.8' fill='%23888' stroke='none'/></svg>")
+    center / 22px no-repeat;
+}
+.plugin-linha-nome { display: flex; gap: .7rem; align-items: flex-start; }
+.item-ico {
+  width: 19px; height: 19px; border-radius: 4px; object-fit: cover; flex: none;
+  background: color-mix(in srgb, var(--texto) 10%, transparent);
+}
 
 .plugins-wp { display: flex; flex-direction: column; gap: .9rem; }
 .plugins-tabs {
@@ -1385,4 +1396,31 @@ html[data-tema="claro"] .layout-canvas-scroll {
 @media (max-width: 520px) {
   .inst-intro-card { padding: 1.6rem 1.1rem 1.25rem; }
   .inst-intro-selo { width: 56px; height: 56px; }
+}
+
+.setup-plug-lista { display: flex; flex-direction: column; gap: .65rem; }
+.setup-plug-card {
+  display: flex; justify-content: space-between; align-items: center; gap: .8rem;
+  padding: .75rem .85rem; border: 1px solid var(--borda); border-radius: var(--r-lg, 14px);
+  background: var(--superficie-2);
+}
+.setup-plug-cab { display: flex; gap: .7rem; align-items: flex-start; min-width: 0; }
+.setup-plug-cab p { margin: .2rem 0 0; }
+.setup-plug-offline {
+  text-align: center; padding: 1.6rem 1rem 1.2rem;
+  border: 1px dashed var(--borda); border-radius: var(--r-lg, 14px);
+  background: var(--superficie-2);
+}
+.setup-plug-offline-titulo { margin: .4rem 0 .2rem; font-weight: 650; }
+.setup-plug-pulse {
+  width: 52px; height: 52px; margin: 0 auto .5rem; border-radius: 50%;
+  border: 3px solid var(--borda);
+  border-top-color: var(--erro);
+  animation: setup-plug-spin 1s linear infinite;
+}
+@keyframes setup-plug-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-plug-pulse { animation: none; }
 }

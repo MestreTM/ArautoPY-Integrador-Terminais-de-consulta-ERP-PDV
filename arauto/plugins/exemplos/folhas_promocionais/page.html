@@ -74,6 +74,10 @@
         <!-- camadas renderizadas via JS -->
       </div>
     </div>
+    <div class="folha-canvas-vazio" id="folha-canvas-vazio">
+      <p class="meta-img">Nenhum projeto selecionado</p>
+      <button type="button" class="botao botao--claro" id="folha-abrir-projeto">Criar ou editar projeto</button>
+    </div>
   </main>
 </div>
 
@@ -100,6 +104,7 @@
       <p class="meta-img" style="margin-top:.6rem">Templates salvos</p>
       <ul class="folha-prod-lista" id="folha-inicio-lista"></ul>
     </div>
+    <button type="button" class="botao botao--fantasma" id="folha-inicio-fechar" style="margin-top:.85rem">Fechar</button>
   </div>
 </div>
 
@@ -210,14 +215,33 @@
 .folha-props-corpo .prop-linha { display: grid; grid-template-columns: 5.5rem 1fr; gap: .35rem; align-items: center; font-size: .8rem; }
 .folha-acoes { display: flex; flex-direction: column; gap: .4rem; margin-top: auto; padding-top: .5rem; }
 .folha-canvas-wrap {
-  border: 1px solid var(--line, #2a3550);
+  border: 1px solid var(--borda, var(--line, #2a3550));
   border-radius: 14px;
-  background: rgb(0 0 0 / .25);
+  background: var(--superficie-2, rgb(0 0 0 / .25));
   display: flex;
   flex-direction: column;
   min-height: 28rem;
   overflow: hidden;
+  position: relative;
 }
+.folha-canvas-vazio {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  background: color-mix(in srgb, var(--superficie, #232532) 88%, transparent);
+  backdrop-filter: blur(2px);
+}
+.folha-canvas-vazio[hidden] { display: none !important; }
+.folha-shell--bloqueado .folha-lateral {
+  pointer-events: none;
+  opacity: .45;
+}
+.folha-shell--bloqueado .folha-folha { visibility: hidden; }
 .folha-canvas-toolbar {
   display: flex;
   justify-content: space-between;

@@ -149,6 +149,8 @@ _SETUP_API = (
     "/api/config/listar-colunas",
     "/api/config/amostra-produto",
     "/api/autostart",
+    "/api/plugins/catalogo",
+    "/api/plugins/catalogo/refresh",
 )
 
 
@@ -175,6 +177,8 @@ async def middleware_acesso(request: Request, call_next):
     completo = setup_completo()
     if not completo:
         if path.startswith("/setup") or path in _SETUP_API or path.startswith("/api/setup"):
+            return await call_next(request)
+        if path.startswith("/api/plugins/") and ("instalar" in path or path.endswith("/icone")):
             return await call_next(request)
         if _quer_html(request):
             return RedirectResponse("/setup", status_code=303)

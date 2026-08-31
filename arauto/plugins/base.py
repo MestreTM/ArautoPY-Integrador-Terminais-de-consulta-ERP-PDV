@@ -15,6 +15,7 @@ class PluginTab:
     rotulo: str
     href: str
     ordem: int = 100
+    icone: str = ""
 
 
 @dataclass
@@ -28,6 +29,8 @@ class PluginInfo:
     habilitado: bool = True
     padrao: bool = False
     erro: str | None = None
+    icone: str = ""
+    icone_url: str = ""
     abas: list[PluginTab] = field(default_factory=list)
 
 

@@ -3,6 +3,7 @@
 from .base import Plugin, PluginContext, PluginInfo, PluginTab
 from .manager import (
     abas_ativas,
+    caminho_arquivo_icone,
     caminho_exemplo_zip,
     carregar_todos,
     definir_habilitado,
@@ -22,6 +23,7 @@ __all__ = [
     "PluginInfo",
     "PluginTab",
     "abas_ativas",
+    "caminho_arquivo_icone",
     "caminho_exemplo_zip",
     "carregar_todos",
     "definir_habilitado",

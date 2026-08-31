@@ -1,7 +1,8 @@
 {
   "id": "folhas_promocionais",
   "nome": "Gerador de Cartaz",
-  "versao": "1.0.1",
+  "versao": "1.0.2",
   "descricao": "Editor de cartazes promocionais (A4, A2 e tamanhos personalizados) com camadas, dados do produto e imagem do Cosmos. Salva templates e exporta PNG/JPG/PDF.",
-  "autor": "ArautoPY"
+  "autor": "ArautoPY",
+  "icone": "icons/gerador_de_cartaz.jpg"
 }

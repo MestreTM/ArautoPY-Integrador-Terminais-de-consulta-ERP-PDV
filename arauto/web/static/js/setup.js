@@ -4,7 +4,7 @@
 
   const estado = {
     passo: 1,
-    max: 4,
+    max: 5,
     usuario: "",
     senha: "",
     loja: "",
@@ -109,7 +109,7 @@
       li.classList.toggle("inst-passo--ativo", n === estado.passo);
       li.classList.toggle("inst-passo--ok", n < estado.passo);
     });
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= estado.max; i++) {
       const el = $("passo-" + i);
       if (el) el.hidden = i !== estado.passo;
     }
@@ -374,7 +374,9 @@
   }
 
   async function concluir() {
-    estado.autostart = !!($("setup-autostart") && $("setup-autostart").checked);
+    const st = window.ARAUTO_AUTOSTART || {};
+    estado.autostart = !(st.docker || st.disponivel === false)
+      && !!($("setup-autostart") && $("setup-autostart").checked);
     await json("/api/setup/base", {
       method: "POST",
       body: {
@@ -405,17 +407,23 @@
         validarPasso2();
         if (!precisaCampos()) {
           estado.passo = 4;
-          atualizarResumo();
+          carregarCatalogoSetup();
           pintarPassos();
           return;
         }
       } else if (estado.passo === 3) validarPasso3();
       else if (estado.passo === 4) {
+        estado.passo = 5;
+        atualizarResumo();
+        pintarPassos();
+        return;
+      } else if (estado.passo === 5) {
         await concluir();
         return;
       }
       estado.passo = Math.min(estado.max, estado.passo + 1);
-      if (estado.passo === 4) atualizarResumo();
+      if (estado.passo === 4) carregarCatalogoSetup();
+      if (estado.passo === 5) atualizarResumo();
       if (estado.passo === 3) { atualizarMapaResumo(); carregarAmostra(); }
       pintarPassos();
     } catch (e) {
@@ -429,6 +437,8 @@
     if (estado.passo === 4 && !precisaCampos()) estado.passo = 2;
     else estado.passo = Math.max(1, estado.passo - 1);
     pintarPassos();
+    if (estado.passo === 4) carregarCatalogoSetup();
+    if (estado.passo === 5) atualizarResumo();
   }
 
   document.querySelectorAll('input[name="db-mode"]').forEach((el) => {
@@ -647,6 +657,118 @@
     });
   }
 
+  let catalogoSetup = [];
+  let catPagina = 0;
+  const CAT_POR_PAGINA = 6;
+
+  function iconePlugin(p) {
+    if (p && p.icone) {
+      return `<img class="plugin-ico" src="${esc(p.icone)}" alt="" onerror="this.classList.add('plugin-ico--vazio');this.removeAttribute('src')">`;
+    }
+    return `<span class="plugin-ico plugin-ico--vazio" aria-hidden="true"></span>`;
+  }
+
+  function cardPlugin(p) {
+    const ok = p.status === "instalado";
+    const btn = ok
+      ? `<button type="button" class="botao" disabled>Instalado</button>`
+      : `<button type="button" class="botao botao--claro" data-inst-plug="${esc(p.id)}">Instalar</button>`;
+    return `<article class="setup-plug-card">
+      <div class="setup-plug-cab">${iconePlugin(p)}
+        <div>
+          <strong>${esc(p.nome || p.id)}</strong>
+          <p class="meta-img">${esc(p.descricao || "")}</p>
+        </div>
+      </div>
+      ${btn}
+    </article>`;
+  }
+
+  function pintarCatalogoResumo() {
+    const box = $("setup-plug-lista");
+    if (!box) return;
+    const top = catalogoSetup.slice(0, 5);
+    box.innerHTML = top.length
+      ? top.map(cardPlugin).join("")
+      : '<p class="meta-img">Nenhum plugin no catálogo.</p>';
+  }
+
+  function pintarCatalogoModal() {
+    const box = $("setup-plug-modal-lista");
+    if (!box) return;
+    const total = Math.max(1, Math.ceil(catalogoSetup.length / CAT_POR_PAGINA));
+    if (catPagina > total - 1) catPagina = total - 1;
+    if (catPagina < 0) catPagina = 0;
+    const ini = catPagina * CAT_POR_PAGINA;
+    const fatia = catalogoSetup.slice(ini, ini + CAT_POR_PAGINA);
+    box.innerHTML = fatia.length
+      ? fatia.map(cardPlugin).join("")
+      : '<p class="meta-img">Nenhum plugin nesta página.</p>';
+    if ($("setup-plug-pagina")) $("setup-plug-pagina").textContent = (catPagina + 1) + " / " + total;
+    if ($("setup-plug-prev")) $("setup-plug-prev").disabled = catPagina <= 0;
+    if ($("setup-plug-next")) $("setup-plug-next").disabled = catPagina >= total - 1;
+  }
+
+  async function carregarCatalogoSetup(forcar) {
+    const okBox = $("setup-plugins-ok");
+    const erBox = $("setup-plugins-erro");
+    try {
+      const r = await json(forcar ? "/api/plugins/catalogo/refresh" : "/api/plugins/catalogo");
+      const online = (r && r.online) || [];
+      const falhou = !!(r && r.catalogo_erro) && !online.length;
+      catalogoSetup = online;
+      if (falhou) {
+        if (okBox) okBox.hidden = true;
+        if (erBox) erBox.hidden = false;
+        return;
+      }
+      if (okBox) okBox.hidden = false;
+      if (erBox) erBox.hidden = true;
+      pintarCatalogoResumo();
+      pintarCatalogoModal();
+    } catch (e) {
+      catalogoSetup = [];
+      if (okBox) okBox.hidden = true;
+      if (erBox) erBox.hidden = false;
+    }
+  }
+
+  async function instalarPluginSetup(pid, btn) {
+    if (!pid) return;
+    if (btn) { btn.disabled = true; btn.textContent = "Instalando…"; }
+    try {
+      const r = await json("/api/plugins/" + encodeURIComponent(pid) + "/instalar-online", {
+        method: "POST",
+        body: { confirmar: true, confirmar_checksum: true },
+      });
+      if (!r.ok) throw new Error(r.detail || "Falha ao instalar");
+      aviso(r.detail || "Plugin instalado.");
+      await carregarCatalogoSetup(true);
+    } catch (e) {
+      aviso(e.message || "Não foi possível instalar", true);
+      if (btn) { btn.disabled = false; btn.textContent = "Instalar"; }
+    }
+  }
+
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-inst-plug]");
+    if (!btn) return;
+    ev.preventDefault();
+    instalarPluginSetup(btn.getAttribute("data-inst-plug"), btn);
+  });
+  if ($("btn-explorar-plugins")) {
+    $("btn-explorar-plugins").addEventListener("click", () => {
+      catPagina = 0;
+      pintarCatalogoModal();
+      if ($("modal-plugins")) $("modal-plugins").hidden = false;
+    });
+  }
+  if ($("modal-plugins-fechar")) $("modal-plugins-fechar").addEventListener("click", () => { $("modal-plugins").hidden = true; });
+  if ($("modal-plugins-fundo")) $("modal-plugins-fundo").addEventListener("click", () => { $("modal-plugins").hidden = true; });
+  if ($("setup-plug-prev")) $("setup-plug-prev").addEventListener("click", () => { catPagina -= 1; pintarCatalogoModal(); });
+  if ($("setup-plug-next")) $("setup-plug-next").addEventListener("click", () => { catPagina += 1; pintarCatalogoModal(); });
+  if ($("btn-plugins-retry")) $("btn-plugins-retry").addEventListener("click", () => carregarCatalogoSetup(true));
+
   json("/api/config/dialectos").then((r) => {
     dialectos = (r && r.itens) || [];
     const sel = $("url-dialecto");
@@ -664,12 +786,18 @@
   }).catch(() => {});
 
   const st = window.ARAUTO_AUTOSTART || {};
-  if ($("autostart-motivo")) $("autostart-motivo").textContent = st.motivo || "";
-  if ($("bloco-autostart")) {
-    $("bloco-autostart").hidden = st.disponivel === false;
-    if (st.disponivel === false && $("autostart-dica")) {
-      $("autostart-dica").textContent = st.motivo || "Esta instalação não gerencia a inicialização do sistema.";
-    }
+  const semAutostart = st.docker === true || st.disponivel === false;
+  if (semAutostart) {
+    estado.autostart = false;
+    if ($("bloco-autostart")) $("bloco-autostart").hidden = true;
+    if ($("autostart-dica")) $("autostart-dica").hidden = true;
+    if ($("autostart-status")) $("autostart-status").hidden = true;
+    if ($("setup-autostart")) $("setup-autostart").checked = false;
+    if ($("passo-5-titulo")) $("passo-5-titulo").textContent = "Tudo pronto";
+    const rotulo = $("inst-passo-5-rotulo");
+    if (rotulo) rotulo.innerHTML = "<span>5</span> Pronto";
+  } else {
+    if ($("autostart-motivo")) $("autostart-motivo").textContent = st.motivo || "";
     if (st.ativo && $("setup-autostart")) $("setup-autostart").checked = true;
   }
   ["btn-setup-amostra-reload", "btn-mapa-amostra-reload"].forEach((id) => {

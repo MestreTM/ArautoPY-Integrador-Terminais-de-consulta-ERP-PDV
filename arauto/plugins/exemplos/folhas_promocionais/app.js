@@ -23,6 +23,7 @@
     imgCache: {},
     /** camada pendente no modal de imagem personalizada */
     pendingCustomId: null,
+    projetoAtivo: false,
   };
 
   async function api(path, opts) {
@@ -1087,26 +1088,56 @@
     }
   }
 
+  function setProjetoAtivo(on) {
+    estado.projetoAtivo = !!on;
+    const shell = document.querySelector(".folha-shell");
+    if (shell) shell.classList.toggle("folha-shell--bloqueado", !estado.projetoAtivo);
+    const vazio = $("folha-canvas-vazio");
+    if (vazio) vazio.hidden = estado.projetoAtivo;
+    if (!estado.projetoAtivo) {
+      estado.selecionada = null;
+    }
+  }
+
+  function abrirModalInicio() {
+    const wrap = $("folha-inicio-lista-wrap");
+    if (wrap) wrap.hidden = true;
+    $("folha-modal-inicio").hidden = false;
+  }
+
+  function fecharModalInicio() {
+    $("folha-modal-inicio").hidden = true;
+    if (!estado.projetoAtivo) setProjetoAtivo(false);
+  }
+
   async function importarArquivoTemplate(file) {
     try {
       const nome = (file.name || "").toLowerCase();
+      let tpl = null;
       if (nome.endsWith(".zip")) {
         const fd = new FormData();
         fd.append("file", file);
         const r = await fetch(BASE + "/template/import-zip", { method: "POST", body: fd });
         const j = await r.json();
         if (!r.ok || !j.ok) throw new Error(j.detail || "Falha no import");
-        const tpl = j.template;
+        tpl = j.template;
         if (!tpl || !Array.isArray(tpl.camadas)) throw new Error("Template inválido no ZIP.");
         if (!tpl.papel) tpl.papel = { tipo: "A4", largura_mm: 210, altura_mm: 297 };
         aplicarTemplate(tpl);
+        setProjetoAtivo(true);
+        if (j.id) estado.template.id = j.id;
+        await carregarTemplates();
+        if (window.TC && TC.aviso) TC.aviso("Template importado e salvo.");
+        else alert("Template importado e salvo.");
       } else {
         const text = await file.text();
         const data = JSON.parse(text);
-        const tpl = data.template || data;
+        tpl = data.template || data;
         if (!tpl || !Array.isArray(tpl.camadas)) throw new Error("JSON inválido: falta camadas.");
         if (!tpl.papel) tpl.papel = { tipo: "A4", largura_mm: 210, altura_mm: 297 };
         aplicarTemplate(tpl);
+        setProjetoAtivo(true);
+        await salvar();
       }
     } catch (e) {
       alert("Falha ao importar: " + (e.message || e));
@@ -1231,8 +1262,8 @@
       o.textContent = meta.papeis[k].rotulo || k;
       selPapel.appendChild(o);
     });
-    aplicarTemplate(meta.template_padrao);
     await carregarTemplates();
+    setProjetoAtivo(false);
 
     $("folha-papel").addEventListener("change", aoMudarPapel);
     $("folha-w").addEventListener("change", () => {
@@ -1365,6 +1396,7 @@
             try {
               const r2 = await api("/templates/" + encodeURIComponent(t.id));
               aplicarTemplate(r2.template);
+              setProjetoAtivo(true);
               $("folha-modal-inicio").hidden = true;
             } catch (e) {
               alert(e.message);
@@ -1378,19 +1410,28 @@
 
     $("folha-inicio-novo").onclick = () => {
       aplicarTemplate(estado.meta.template_padrao);
+      setProjetoAtivo(true);
       $("folha-modal-inicio").hidden = true;
     };
     $("folha-inicio-abrir").onclick = () => mostrarListaTemplatesInicio();
     $("folha-inicio-importar").onclick = () => $("folha-import-file").click();
+    if ($("folha-inicio-fechar")) {
+      $("folha-inicio-fechar").onclick = () => fecharModalInicio();
+    }
+    const modalInicio = $("folha-modal-inicio");
+    if (modalInicio) {
+      modalInicio.addEventListener("click", (e) => {
+        if (e.target === modalInicio) fecharModalInicio();
+      });
+    }
+    if ($("folha-abrir-projeto")) {
+      $("folha-abrir-projeto").onclick = () => abrirModalInicio();
+    }
     if ($("folha-trocar-tpl")) {
-      $("folha-trocar-tpl").onclick = () => {
-        $("folha-inicio-lista-wrap").hidden = true;
-        $("folha-modal-inicio").hidden = false;
-      };
+      $("folha-trocar-tpl").onclick = () => abrirModalInicio();
     }
 
-    // helper inicial
-    $("folha-modal-inicio").hidden = false;
+    abrirModalInicio();
 
     // clique fora desmarca
     const scroll = $("folha-canvas-scroll");
