@@ -52,10 +52,11 @@ Recriação em Python do Gertec TC Server, com painel web, API REST, plugins e s
 ### Docker (recomendado para servidor / Linux)
 
 ```bash
-docker compose up -d
+docker run -d --name arauto --restart unless-stopped -p 6689:6689 -p 5589:5589 -p 6500:6500 -p 16510:16510 -v arauto-data:/data ghcr.io/mestretm/arautopy:latest
 ```
+Este comando já instala e inicializa o sistema, também configura para inicializar com o Docker automaticamente.
 
-Painel em http://localhost:6689/painel. Detalhes em [DOCKER.md](DOCKER.md).
+Painel em http://localhost:6689/painel ou http://arauto.localhost:6689/painel. Detalhes em [DOCKER.md](DOCKER.md).
 
 Sem clonar o repositório, se a imagem já estiver no GitHub Container Registry:
 
