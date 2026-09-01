@@ -18,6 +18,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from ..core.models import Product
 from ..core.settings import INTERNAL_DB, Settings
@@ -368,6 +369,41 @@ class TextFileRepository(_MemoryIndexed):
         return data
 
 
+def _erro_encoding(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return (
+        isinstance(exc, UnicodeError)
+        or "codec can't decode" in msg
+        or "unicodedecodeerror" in msg
+        or "invalid continuation byte" in msg
+        or "invalid start byte" in msg
+    )
+
+
+def _normalizar_url_sql(url: str) -> str:
+    url = (url or "").strip()
+    if url.lower().startswith("firebird://"):
+        url = "firebird+firebird://" + url.split("://", 1)[1]
+    if "firebird" not in url.lower():
+        return url
+    partes = urlsplit(url)
+    q = dict(parse_qsl(partes.query, keep_blank_values=True))
+    if not any(k.lower() == "charset" for k in q):
+        q["charset"] = "WIN1252"
+    return urlunsplit((partes.scheme, partes.netloc, partes.path, urlencode(q), partes.fragment))
+
+
+def _connect_args_sql(url: str) -> dict:
+    if "firebird" not in (url or "").lower():
+        return {}
+    charset = "WIN1252"
+    for k, v in parse_qsl(urlsplit(url).query, keep_blank_values=True):
+        if k.lower() == "charset" and v.strip():
+            charset = v.strip()
+            break
+    return {"charset": charset}
+
+
 # -------------------------------------------------------------------------- SQL
 class SqlRepository(_MemoryIndexed):
     """Banco externo via SQLAlchemy. Equivale ao modo JDBC do original.
@@ -389,9 +425,9 @@ class SqlRepository(_MemoryIndexed):
                 "O modo EXTERNAL_SQL exige SQLAlchemy. Instale com: pip install sqlalchemy"
             ) from exc
 
-        url = (url or "").strip()
+        url = _normalizar_url_sql(url)
         # SQLAlchemy 2.x removeu o dialeto Firebird interno — use sqlalchemy-firebird.
-        if url.lower().startswith("firebird"):
+        if "firebird" in url.lower():
             try:
                 import sqlalchemy_firebird  # noqa: F401
             except ImportError as exc:
@@ -402,8 +438,6 @@ class SqlRepository(_MemoryIndexed):
                     "firebird+firebird://SYSDBA:masterkey@localhost/C:/produtos/dbvenda.fdb "
                     "— Firebird 2.5: pip install fdb e use firebird+fdb://..."
                 ) from exc
-            if url.lower().startswith("firebird://"):
-                url = "firebird+firebird://" + url.split("://", 1)[1]
 
         self.url = url
         self.table = table
@@ -414,6 +448,7 @@ class SqlRepository(_MemoryIndexed):
                 url,
                 pool_pre_ping=True,
                 pool_reset_on_return="rollback",
+                connect_args=_connect_args_sql(url),
             )
         except Exception as exc:
             nome = type(exc).__name__
@@ -476,7 +511,14 @@ class SqlRepository(_MemoryIndexed):
             return len(products)
         except Exception as exc:
             self._error = str(exc)
-            log.error("Perda de conexão com o banco: %s", exc)
+            if _erro_encoding(exc):
+                log.error(
+                    "Banco respondeu em outro charset (não UTF-8). "
+                    "Na URL do Firebird use ?charset=WIN1252 ou ?charset=ISO8859_1. Detalhe: %s",
+                    exc,
+                )
+            else:
+                log.error("Perda de conexão com o banco: %s", exc)
             return self.count()
 
     def status(self) -> dict:
@@ -496,7 +538,7 @@ def _preparar_engine_sql(url: str):
     Usa NullPool: conexões de teste/listagem não ficam no pool — evita o
     access violation do firebird-driver no ``Connection.__del__``.
     """
-    url = (url or "").strip()
+    url = _normalizar_url_sql(url)
     if not url:
         raise RuntimeError("URL vazia.")
     try:
@@ -505,21 +547,20 @@ def _preparar_engine_sql(url: str):
     except ImportError as exc:
         raise RuntimeError("SQLAlchemy não instalado. pip install sqlalchemy") from exc
 
-    if url.lower().startswith("firebird"):
+    if "firebird" in url.lower():
         try:
             import sqlalchemy_firebird  # noqa: F401
         except ImportError as exc:
             raise RuntimeError(
                 "Firebird exige sqlalchemy-firebird. pip install sqlalchemy-firebird"
             ) from exc
-        if url.lower().startswith("firebird://"):
-            url = "firebird+firebird://" + url.split("://", 1)[1]
 
     engine = create_engine(
         url,
         poolclass=NullPool,
         pool_pre_ping=True,
         pool_reset_on_return="rollback",
+        connect_args=_connect_args_sql(url),
     )
     return engine, url
 
