@@ -52,7 +52,7 @@ Recriação em Python do Gertec TC Server, com painel web, API REST, plugins e s
 ### Docker (recomendado para servidor / Linux)
 
 ```bash
-docker run -d --name arauto --restart unless-stopped -p 6689:6689 -p 5589:5589 -p 6500:6500 -p 16510:16510 -v arauto-data:/data ghcr.io/mestretm/arautopy:latest
+docker run -d --name arauto --restart unless-stopped -p 6689:6689 -p 5589:5589 -p 6500:6500 -p 16510:16510 -v arauto-data:/data --add-host host.docker.internal:host-gateway ghcr.io/mestretm/arautopy:latest
 ```
 Este comando já instala e inicializa o sistema, também configura para inicializar com o Docker automaticamente.
 
