@@ -514,8 +514,8 @@
         });
         aplicarModo();
         if (v.DB_URL) {
-          estado.url = v.DB_URL;
-          if ($("c_DB_URL")) $("c_DB_URL").value = v.DB_URL;
+          estado.url = (window.TC && TC.urlSqlAmbiente) ? TC.urlSqlAmbiente(v.DB_URL) : v.DB_URL;
+          if ($("c_DB_URL")) $("c_DB_URL").value = estado.url;
           try {
             const raw = v.DB_URL;
             const d = dialectos.find((x) => raw.startsWith(x.scheme + "://"));
@@ -538,7 +538,10 @@
               host = hostport.split(":")[0];
               porta = hostport.split(":")[1].split("?")[0];
             } else host = hostport;
-            if ($("url-host")) $("url-host").value = host || "localhost";
+            if ($("url-host")) {
+              const defHost = (window.TC && TC.emDocker && TC.emDocker()) ? "host.docker.internal" : "localhost";
+              $("url-host").value = host || defHost;
+            }
             if ($("url-porta")) $("url-porta").value = porta || (d && d.porta) || "";
             if ($("url-user")) $("url-user").value = user;
             if ($("url-pass")) $("url-pass").value = pass;
@@ -647,19 +650,19 @@
       if (!estado.url) aplicarUrl(montarUrl());
       const out = $("testar-sql-resultado");
       try {
-        const r = await json("/api/config/testar-sql", {
-          method: "POST",
-          body: {
-            DB_URL: estado.url,
-            DB_PRODUCT_TABLE_NAME: estado.tabela,
-            DB_COL_BARCODE: estado.colunas.barcode,
-            DB_COL_BARCODE_ALT: estado.colunas.barcode_alt,
-            DB_COL_DESCRIPITION: estado.colunas.description,
-            DB_COL_PRICE1: estado.colunas.price1,
-            DB_COL_PRICE2: estado.colunas.price2,
-            preset_id: estado.presetId || "",
-          },
-        });
+        const extra = {
+          DB_PRODUCT_TABLE_NAME: estado.tabela,
+          DB_COL_BARCODE: estado.colunas.barcode,
+          DB_COL_BARCODE_ALT: estado.colunas.barcode_alt,
+          DB_COL_DESCRIPITION: estado.colunas.description,
+          DB_COL_PRICE1: estado.colunas.price1,
+          DB_COL_PRICE2: estado.colunas.price2,
+          preset_id: estado.presetId || "",
+        };
+        const r = (window.TC && TC.testarSqlComFallback)
+          ? await TC.testarSqlComFallback(estado.url, extra)
+          : await json("/api/config/testar-sql", { method: "POST", body: Object.assign({ DB_URL: estado.url }, extra) });
+        if (r.url && r.trocou) aplicarUrl(r.url);
         if (out) {
           out.textContent = r.detail || (r.ok ? "Conexão ok" : "Falha");
           out.style.color = r.ok ? "var(--ok)" : "var(--erro)";

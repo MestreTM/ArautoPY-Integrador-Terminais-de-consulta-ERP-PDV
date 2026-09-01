@@ -395,7 +395,11 @@
       const vals = preset.valores || {};
       if (vals.DB_MODE) setCampo("DB_MODE", vals.DB_MODE);
       if (typeof aplicarDependencias === "function") aplicarDependencias();
-      Object.keys(vals).forEach((k) => setCampo(k, vals[k]));
+      Object.keys(vals).forEach((k) => {
+        let valor = vals[k];
+        if (k === "DB_URL" && window.TC && TC.urlSqlAmbiente) valor = TC.urlSqlAmbiente(valor);
+        setCampo(k, valor);
+      });
       if (typeof aplicarDependencias === "function") aplicarDependencias();
       // Garante o mapeamento mesmo se o campo ainda estava desabilitado.
       ["DB_PRODUCT_TABLE_NAME", "DB_COL_BARCODE", "DB_COL_BARCODE_ALT",
@@ -646,11 +650,14 @@
           DB_COL_PRICE2: valCampo("c_DB_COL_PRICE2", presetVals.DB_COL_PRICE2),
           preset_id: presetAtivo,
         };
-        const r = await json("/api/config/testar-sql", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(corpo),
-        });
+        const r = (window.TC && TC.testarSqlComFallback)
+          ? await TC.testarSqlComFallback(corpo.DB_URL, corpo)
+          : await json("/api/config/testar-sql", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(corpo),
+            });
+        if (r.url && r.trocou && $("c_DB_URL")) $("c_DB_URL").value = r.url;
         const ok = !!r.ok;
         if (out) {
           out.hidden = false;

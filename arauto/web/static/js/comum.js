@@ -129,6 +129,41 @@
     return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]";
   }
 
+  function urlSqlAmbiente(url) {
+    var atual = String(url || "").trim();
+    if (!atual) return atual;
+    if (emDocker() && hostEhLocal(hostDaUrl(atual))) {
+      return urlComHost(atual, "host.docker.internal");
+    }
+    return atual;
+  }
+
+  async function testarSqlUrl(url, extra) {
+    extra = extra || {};
+    try {
+      var r = await json("/api/config/testar-sql", {
+        method: "POST",
+        body: Object.assign({}, extra, { DB_URL: url }),
+      });
+      return { ok: !!r.ok, detail: r.detail || (r.ok ? "Conectou" : "Falhou"), url: url };
+    } catch (e) {
+      return { ok: false, detail: e.message || String(e), url: url };
+    }
+  }
+
+  async function testarSqlComFallback(url, extra) {
+    var alvo = urlSqlAmbiente(String(url || "").trim());
+    var a = await testarSqlUrl(alvo, extra);
+    if (a.ok) return Object.assign(a, { trocou: alvo !== url });
+    if (hostEhLocal(hostDaUrl(alvo))) {
+      var alt = urlComHost(alvo, "host.docker.internal");
+      var b = await testarSqlUrl(alt, extra);
+      if (b.ok) return Object.assign(b, { trocou: true });
+      a.alternativo = b;
+    }
+    return a;
+  }
+
   function garantirModalHostSql() {
     if ($("modal-sql-host")) return $("modal-sql-host");
     var wrap = document.createElement("div");
@@ -154,7 +189,7 @@
     var url = String(opts.url || "").trim();
     var extra = opts.extra || {};
     return new Promise(function (resolve) {
-      if (!emDocker() || !url || !hostEhLocal(hostDaUrl(url))) {
+      if (!url || !hostEhLocal(hostDaUrl(url))) {
         resolve(url);
         return;
       }
@@ -207,6 +242,8 @@
     emDocker: emDocker,
     hostDaUrl: hostDaUrl,
     urlComHost: urlComHost,
+    urlSqlAmbiente: urlSqlAmbiente,
+    testarSqlComFallback: testarSqlComFallback,
     confirmarHostSql: confirmarHostSql,
   };
 })();
