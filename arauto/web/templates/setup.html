@@ -297,6 +297,7 @@
   <script>
   window.ARAUTO_PRESETS_BASE = {{ presets_base | tojson }};
   window.ARAUTO_AUTOSTART = {{ autostart | tojson }};
+  window.ARAUTO_DOCKER = {{ (autostart.docker if autostart else False) | tojson }};
   </script>
   <script src="/static/js/comum.js"></script>
   <script src="/static/js/setup.js"></script>

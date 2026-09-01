@@ -148,7 +148,7 @@ def create_viewer(service: QueryService) -> FastAPI:
         from ..core import autostart as _autostart
         ctx = {
             "versao": APP_VERSION,
-            "presets_base": configform.PRESETS_BASE,
+            "presets_base": configform.presets_base(),
             "modos_base": configform.MODOS_BASE,
             "autostart": _autostart.status(),
         }
@@ -162,7 +162,7 @@ def create_viewer(service: QueryService) -> FastAPI:
             "tem_conta": auth_mod.tem_conta(),
             "versao": APP_VERSION,
             "autostart": _autostart.status(),
-            "presets": configform.PRESETS_BASE,
+            "presets": configform.presets_base(),
             "modos": [{"id": a, "rotulo": b} for a, b in configform.MODOS_BASE],
         }
 
@@ -313,7 +313,7 @@ def create_viewer(service: QueryService) -> FastAPI:
         from ..core import product_image as _pimg
         contexto["product_image_pack_url"] = settings.get("PRODUCT_IMAGE_PACK_URL") or ""
         contexto["product_image_pack_url_padrao"] = _pimg.PACOTE_URL_PADRAO
-        contexto["presets_base"] = configform.PRESETS_BASE
+        contexto["presets_base"] = configform.presets_base()
         return TEMPLATES.TemplateResponse(request, "config.html", contexto)
 
     @app.get("/api/config")

@@ -52,7 +52,7 @@ PRESETS_BASE = [
         "valores": {
             "DB_MODE": "EXTERNAL_SQL",
             "DB_URL": (
-                "firebird+firebird://SYSDBA:masterkey@localhost/"
+                "firebird+firebird://SYSDBA:masterkey@{host}/"
                 "C:/DBVenda/DB/dbvenda.fdb?charset=WIN1252"
             ),
             "DB_PRODUCT_TABLE_NAME": "CAD_PRODUTOS",
@@ -274,8 +274,48 @@ CHAVES_EXTRA = CHAVES_IMAGEM | {"AUTOSTART_ENABLED"}
 _TABELAS_GENERICAS = {"", "PRODUCTS", "products", "PRODUTOS"}
 
 
+def _em_docker() -> bool:
+    try:
+        from .autostart import _em_docker as _detect
+        return bool(_detect())
+    except Exception:
+        return False
+
+
+def host_sql_padrao() -> str:
+    return "host.docker.internal" if _em_docker() else "localhost"
+
+
+def presets_base() -> list[dict]:
+    """Cópia dos presets com o host certo (Docker → host.docker.internal)."""
+    import copy
+    host = host_sql_padrao()
+    itens = copy.deepcopy(PRESETS_BASE)
+    for item in itens:
+        vals = item.get("valores") or {}
+        url = str(vals.get("DB_URL") or "")
+        if "{host}" in url:
+            vals["DB_URL"] = url.replace("{host}", host)
+        elif host == "host.docker.internal":
+            vals["DB_URL"] = (
+                url.replace("@localhost/", "@host.docker.internal/")
+                .replace("@127.0.0.1/", "@host.docker.internal/")
+            )
+        item["valores"] = vals
+        if host == "host.docker.internal" and item.get("id") == "dbware":
+            item["nota"] = (
+                (item.get("nota") or "")
+                + " No Docker o host padrão é host.docker.internal "
+                "(localhost dentro do container não é o Windows)."
+            )
+    return itens
+
+
 def preset_por_id(pid: str) -> dict | None:
-    for p in PRESETS_BASE:
+    pid = (pid or "").strip()
+    if not pid:
+        return None
+    for p in presets_base():
         if p.get("id") == pid:
             return p
     return None
@@ -288,7 +328,7 @@ def completar_mapeamento_sql(url: str, table: str, cols: dict | None = None, pre
     url = (url or "").strip()
     preset = preset_por_id(preset_id) if preset_id else None
     if preset is None:
-        for p in PRESETS_BASE:
+        for p in presets_base():
             vals = p.get("valores") or {}
             purl = str(vals.get("DB_URL") or "")
             if not purl:

@@ -447,6 +447,8 @@
 {% block scripts %}
 <script>
 window.ARAUTO_PRESETS_BASE = {{ presets_base | tojson }};
+window.ARAUTO_AUTOSTART = {{ autostart | tojson }};
+window.ARAUTO_DOCKER = {{ (autostart.docker if autostart is mapping else False) | tojson }};
 </script>
 <script src="/static/js/config.js"></script>
 {% endblock %}

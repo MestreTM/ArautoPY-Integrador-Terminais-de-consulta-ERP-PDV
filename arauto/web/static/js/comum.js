@@ -86,7 +86,9 @@
       return String(campos.url || "").trim();
     }
     if (!d) return "";
-    var host = (campos.host || "localhost").trim() || "localhost";
+    var padrao = (window.ARAUTO_DOCKER || (window.ARAUTO_AUTOSTART && window.ARAUTO_AUTOSTART.docker))
+      ? "host.docker.internal" : "localhost";
+    var host = (campos.host || padrao).trim() || padrao;
     var porta = String(campos.porta || "").trim();
     var user = campos.user || "";
     var pass = campos.pass || "";
@@ -103,11 +105,108 @@
     return url;
   }
 
+  function emDocker() {
+    return !!(window.ARAUTO_DOCKER || (window.ARAUTO_AUTOSTART && window.ARAUTO_AUTOSTART.docker));
+  }
+
+  function hostDaUrl(url) {
+    var m = String(url || "").match(/@([^/?#]+)/);
+    if (!m) return "";
+    return m[1].split(":")[0];
+  }
+
+  function urlComHost(url, host) {
+    var atual = String(url || "");
+    if (!atual || !host) return atual;
+    return atual.replace(/@([^/?#]+)/, function (_, h) {
+      var porta = h.indexOf(":") >= 0 ? h.slice(h.indexOf(":")) : "";
+      return "@" + host + porta;
+    });
+  }
+
+  function hostEhLocal(host) {
+    var h = String(host || "").toLowerCase();
+    return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]";
+  }
+
+  function garantirModalHostSql() {
+    if ($("modal-sql-host")) return $("modal-sql-host");
+    var wrap = document.createElement("div");
+    wrap.id = "modal-sql-host";
+    wrap.className = "modal-sql";
+    wrap.hidden = true;
+    wrap.innerHTML =
+      '<div class="modal-sql-fundo" id="modal-sql-host-fundo"></div>' +
+      '<div class="modal-sql-caixa" role="dialog" aria-modal="true">' +
+      '<header class="modal-sql-cab"><div><h2>Onde está o banco?</h2>' +
+      '<p class="dica">Você usou <strong>localhost</strong>. No Docker isso costuma ser o container, não o Windows. Testamos os dois endereços com as mesmas credenciais.</p></div></header>' +
+      '<div id="modal-sql-host-corpo" class="setup-plug-lista"></div>' +
+      '<footer class="modal-sql-rodape" style="flex-wrap:wrap">' +
+      '<button type="button" class="botao" id="modal-sql-host-local">Continuar com localhost</button>' +
+      '<button type="button" class="botao botao--claro" id="modal-sql-host-docker">Usar host.docker.internal</button>' +
+      '</footer></div>';
+    document.body.appendChild(wrap);
+    return wrap;
+  }
+
+  function confirmarHostSql(opts) {
+    opts = opts || {};
+    var url = String(opts.url || "").trim();
+    var extra = opts.extra || {};
+    return new Promise(function (resolve) {
+      if (!emDocker() || !url || !hostEhLocal(hostDaUrl(url))) {
+        resolve(url);
+        return;
+      }
+      var modal = garantirModalHostSql();
+      var corpo = $("modal-sql-host-corpo");
+      if (corpo) corpo.innerHTML = "<p class=\"meta-img\">Testando localhost e host.docker.internal…</p>";
+      modal.hidden = false;
+      var urlDocker = urlComHost(url, "host.docker.internal");
+      var urlLocal = urlComHost(url, "localhost");
+
+      function linha(nome, r) {
+        return "<article class=\"setup-plug-card\"><div><strong>" + esc(nome) + "</strong>" +
+          "<p class=\"meta-img\">" + esc(r.detail || (r.ok ? "Conectou" : "Não conectou")) + "</p></div>" +
+          "<span class=\"badge-img " + (r.ok ? "badge-img--ok" : "badge-img--no") + "\">" +
+          (r.ok ? "Conectou" : "Falhou") + "</span></article>";
+      }
+
+      function fechar(escolhida) {
+        modal.hidden = true;
+        resolve(escolhida || url);
+      }
+
+      Promise.all([
+        json("/api/config/testar-sql", { method: "POST", body: Object.assign({}, extra, { DB_URL: urlLocal }) })
+          .then(function (r) { return { ok: !!r.ok, detail: r.detail || "Conectou" }; })
+          .catch(function (e) { return { ok: false, detail: e.message || String(e) }; }),
+        json("/api/config/testar-sql", { method: "POST", body: Object.assign({}, extra, { DB_URL: urlDocker }) })
+          .then(function (r) { return { ok: !!r.ok, detail: r.detail || "Conectou" }; })
+          .catch(function (e) { return { ok: false, detail: e.message || String(e) }; }),
+      ]).then(function (pares) {
+        if (corpo) {
+          corpo.innerHTML = linha("localhost", pares[0]) + linha("host.docker.internal", pares[1]);
+        }
+        var bLocal = $("modal-sql-host-local");
+        var bDock = $("modal-sql-host-docker");
+        if (bLocal) bLocal.onclick = function () { fechar(urlLocal); };
+        if (bDock) bDock.onclick = function () { fechar(urlDocker); };
+        var fundo = $("modal-sql-host-fundo");
+        if (fundo) fundo.onclick = function () { fechar(url); };
+      });
+    });
+  }
+
   window.TC = {
     $: $,
     esc: esc,
     json: json,
     aviso: aviso,
     montarSqlUrl: montarSqlUrl,
+    emDocker: emDocker,
+    hostDaUrl: hostDaUrl,
+    urlComHost: urlComHost,
+    confirmarHostSql: confirmarHostSql,
   };
 })();

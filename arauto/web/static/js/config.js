@@ -72,6 +72,32 @@
       } else {
         aviso(msg);
       }
+      const urlSalva = ($("c_DB_URL") && $("c_DB_URL").value) || "";
+      const modo = ($("c_DB_MODE") && $("c_DB_MODE").value) || "";
+      if (modo === "EXTERNAL_SQL" && window.TC && TC.confirmarHostSql) {
+        const escolhida = await TC.confirmarHostSql({
+          url: urlSalva,
+          extra: {
+            DB_PRODUCT_TABLE_NAME: ($("c_DB_PRODUCT_TABLE_NAME") && $("c_DB_PRODUCT_TABLE_NAME").value) || "",
+            DB_COL_BARCODE: ($("c_DB_COL_BARCODE") && $("c_DB_COL_BARCODE").value) || "",
+            DB_COL_BARCODE_ALT: ($("c_DB_COL_BARCODE_ALT") && $("c_DB_COL_BARCODE_ALT").value) || "",
+            DB_COL_DESCRIPITION: ($("c_DB_COL_DESCRIPITION") && $("c_DB_COL_DESCRIPITION").value) || "",
+            DB_COL_PRICE1: ($("c_DB_COL_PRICE1") && $("c_DB_COL_PRICE1").value) || "",
+            DB_COL_PRICE2: ($("c_DB_COL_PRICE2") && $("c_DB_COL_PRICE2").value) || "",
+            preset_id: presetAtivo || "",
+          },
+        });
+        if (escolhida && escolhida !== urlSalva && $("c_DB_URL")) {
+          $("c_DB_URL").value = escolhida;
+          const deNovo = coletar();
+          await json("/api/config", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(deNovo),
+          });
+          aviso("Host da URL atualizado para " + (TC.hostDaUrl(escolhida) || escolhida) + ".");
+        }
+      }
     } catch (e) {
       aviso("Não foi possível salvar: " + e.message, true);
     } finally {

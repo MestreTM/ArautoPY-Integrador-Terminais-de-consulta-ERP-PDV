@@ -405,6 +405,21 @@
       if (estado.passo === 1) await validarPasso1();
       else if (estado.passo === 2) {
         validarPasso2();
+        if (estado.modo === "EXTERNAL_SQL" && estado.url && window.TC && TC.confirmarHostSql) {
+          const escolhida = await TC.confirmarHostSql({
+            url: estado.url,
+            extra: {
+              DB_PRODUCT_TABLE_NAME: estado.tabela,
+              DB_COL_BARCODE: estado.colunas.barcode,
+              DB_COL_BARCODE_ALT: estado.colunas.barcode_alt,
+              DB_COL_DESCRIPITION: estado.colunas.description,
+              DB_COL_PRICE1: estado.colunas.price1,
+              DB_COL_PRICE2: estado.colunas.price2,
+              preset_id: estado.presetId || "",
+            },
+          });
+          if (escolhida) aplicarUrl(escolhida);
+        }
         if (!precisaCampos()) {
           estado.passo = 4;
           carregarCatalogoSetup();
